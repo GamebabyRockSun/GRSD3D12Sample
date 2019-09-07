@@ -2,32 +2,26 @@
 #define WIN32_LEAN_AND_MEAN // 从 Windows 头中排除极少使用的资料
 #include <windows.h>
 #include <tchar.h>
-//添加WTL支持 方便使用COM
-#include <wrl.h>
-using namespace Microsoft;
-using namespace Microsoft::WRL;
-
+#include <strsafe.h>
+#include <wrl.h>//添加WTL支持 方便使用COM
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
-using namespace DirectX;
-//for d3d12
-#include <d3d12.h>
+#include <d3d12.h>//for d3d12
 #include <d3dcompiler.h>
+#if defined(_DEBUG)
+#include <dxgidebug.h>
+#endif
+#include <wincodec.h> //for WIC
+#include "..\WindowsCommons\d3dx12.h"
 
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
 //linker
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
-
-#if defined(_DEBUG)
-#include <dxgidebug.h>
-#endif
-
-//for WIC
-#include <wincodec.h>
-
-#include "..\WindowsCommons\d3dx12.h"
 
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 Texture Sample")
@@ -188,41 +182,42 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 {
 	::CoInitialize(nullptr);  //for WIC & COM
 
-	const UINT nFrameBackBufCount = 3u;
+	const UINT							nFrameBackBufCount = 3u;
 
-	int iWidth = 1024;
-	int iHeight = 768;
-	UINT nFrameIndex = 0;
-	UINT nFrame = 0;
+	int									iWidth = 1024;
+	int									iHeight = 768;
+	UINT								nFrameIndex = 0;
+	UINT								nFrame = 0;
 
-	UINT nDXGIFactoryFlags = 0U;
-	UINT nRTVDescriptorSize = 0U;
+	UINT								nDXGIFactoryFlags = 0U;
+	UINT								nRTVDescriptorSize = 0U;
 
-	HWND hWnd = nullptr;
-	MSG	msg = {};
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
+	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	float fAspectRatio = 3.0f;
+	float								fAspectRatio = 3.0f;
 
-	D3D12_VERTEX_BUFFER_VIEW stVertexBufferView = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 
-	UINT64 n64FenceValue = 0ui64;
-	HANDLE hFenceEvent = nullptr;
+	UINT64								n64FenceValue = 0ui64;
+	HANDLE								hFenceEvent = nullptr;
 
-	UINT nTextureW = 0u;
-	UINT nTextureH = 0u;
-	UINT nBPP = 0u;
-	UINT nPicRowPitch = 0;
-	UINT64 n64UploadBufferSize = 0;
-	DXGI_FORMAT stTextureFormat = DXGI_FORMAT_UNKNOWN;
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayouts = {};
-	D3D12_RESOURCE_DESC stTextureDesc = {};
-	D3D12_RESOURCE_DESC stDestDesc = {};
+	UINT								nTextureW = 0u;
+	UINT								nTextureH = 0u;
+	UINT								nBPP = 0u;
+	UINT								nPicRowPitch = 0;
+	UINT64								n64UploadBufferSize = 0;
+	DXGI_FORMAT							stTextureFormat = DXGI_FORMAT_UNKNOWN;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayouts = {};
+	D3D12_RESOURCE_DESC					stTextureDesc = {};
+	D3D12_RESOURCE_DESC					stDestDesc = {};
 
 	
-	UINT nSamplerDescriptorSize = 0; //采样器大小
+	UINT								nSamplerDescriptorSize = 0; //采样器大小
 	
-	CD3DX12_VIEWPORT stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
-	CD3DX12_RECT	 stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
+	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
+	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
@@ -258,6 +253,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	try
 	{
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
+		{
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
+			if (MAX_PATH == nBytes)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+		}
+
 		//1、创建窗口
 		{
 			//---------------------------------------------------------------------------------------------
@@ -305,7 +309,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pIWICFactory)));
 
 			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
-			WCHAR* pszTexcuteFileName = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\2-D3D12WICTexture\\Texture\\bear.jpg");
+			WCHAR pszTexcuteFileName[MAX_PATH] = {};
+			StringCchPrintfW(pszTexcuteFileName, MAX_PATH, _T("%s\\Texture\\bear.jpg"), pszAppPath);
+
 			GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
 				pszTexcuteFileName,              // 文件名
 				NULL,                            // 不指定解码器，使用默认
@@ -562,7 +568,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 #else
 			UINT compileFlags = 0;
 #endif
-			TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\2-D3D12WICTexture\\Shader\\Texture.hlsl");
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\Texture.hlsl"), pszAppPath);
+			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIBlobVertexShader, nullptr));
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
@@ -1009,7 +1017,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			case WAIT_TIMEOUT:
 			{//计时器时间到
 				//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nFrameIndex);
 				//开始记录命令
@@ -1104,6 +1111,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						bExit = TRUE;
 					}
 				}
+			}
+			break;
+			case WAIT_TIMEOUT:
+			{
+
 			}
 			break;
 			default:

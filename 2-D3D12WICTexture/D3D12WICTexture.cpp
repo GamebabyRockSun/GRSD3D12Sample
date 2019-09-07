@@ -2,17 +2,23 @@
 #define WIN32_LEAN_AND_MEAN // 从 Windows 头中排除极少使用的资料
 #include <windows.h>
 #include <tchar.h>
-//添加WTL支持 方便使用COM
-#include <wrl.h>
-using namespace Microsoft;
-using namespace Microsoft::WRL;
-
+#include <strsafe.h>
+#include <wrl.h>		//添加WTL支持 方便使用COM
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
-using namespace DirectX;
-//for d3d12
-#include <d3d12.h>
+#include <d3d12.h>       //for d3d12
 #include <d3dcompiler.h>
+
+#if defined(_DEBUG)
+#include <dxgidebug.h>
+#endif
+
+#include <wincodec.h>   //for WIC
+#include "..\WindowsCommons\d3dx12.h"
+
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
 
 //linker
 #pragma comment(lib, "dxguid.lib")
@@ -20,21 +26,9 @@ using namespace DirectX;
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
-#if defined(_DEBUG)
-#include <dxgidebug.h>
-#endif
-
-//for WIC
-#include <wincodec.h>
-
-#include "..\WindowsCommons\d3dx12.h"
-
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 Texture Sample")
-
 #define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
-
-
 
 class CGRSCOMException
 {
@@ -183,31 +177,32 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	const UINT nFrameBackBufCount = 3u;
 
-	int iWidth = 1024;
-	int iHeight = 768;
-	UINT nFrameIndex = 0;
-	UINT nFrame = 0;
+	int									iWidth = 1024;
+	int									iHeight = 768;
+	UINT								nFrameIndex = 0;
+	UINT								nFrame = 0;
 
-	UINT nDXGIFactoryFlags = 0U;
-	UINT nRTVDescriptorSize = 0U;
+	UINT								nDXGIFactoryFlags = 0U;
+	UINT								nRTVDescriptorSize = 0U;
 
-	HWND hWnd = nullptr;
-	MSG	msg = {};
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
+	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	float fAspectRatio = 3.0f;
+	float								fAspectRatio = 3.0f;
 
-	D3D12_VERTEX_BUFFER_VIEW stVertexBufferView = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 
-	UINT64 n64FenceValue = 0ui64;
-	HANDLE hFenceEvent = nullptr;
+	UINT64								n64FenceValue = 0ui64;
+	HANDLE								hFenceEvent = nullptr;
 
-	UINT nTextureW = 0u;
-	UINT nTextureH = 0u;
-	UINT nBPP	   = 0u;
-	DXGI_FORMAT stTextureFormat = DXGI_FORMAT_UNKNOWN;
+	UINT								nTextureW = 0u;
+	UINT								nTextureH = 0u;
+	UINT								nBPP = 0u;
+	DXGI_FORMAT							stTextureFormat = DXGI_FORMAT_UNKNOWN;
 
-	CD3DX12_VIEWPORT stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
-	CD3DX12_RECT	 stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
+	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
+	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
@@ -219,6 +214,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12DescriptorHeap>		pISRVHeap;
 	ComPtr<ID3D12Resource>				pIARenderTargets[nFrameBackBufCount];
 	ComPtr<ID3D12Resource>				pITexture;
+	ComPtr<ID3D12Resource>				pITextureUpload;
 	ComPtr<ID3D12CommandAllocator>		pICommandAllocator;
 	ComPtr<ID3D12RootSignature>			pIRootSignature;
 	ComPtr<ID3D12PipelineState>			pIPipelineState;
@@ -230,573 +226,627 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<IWICBitmapDecoder>			pIWICDecoder;
 	ComPtr<IWICBitmapFrameDecode>		pIWICFrame;
 
+	D3D12_RESOURCE_DESC					stTextureDesc = {};
+
 	try
 	{
-		//---------------------------------------------------------------------------------------------
-		// 1、创建窗口
-		WNDCLASSEX wcex = {};
-		wcex.cbSize = sizeof(WNDCLASSEX);
-		wcex.style = CS_GLOBALCLASS;
-		wcex.lpfnWndProc = WndProc;
-		wcex.cbClsExtra = 0;
-		wcex.cbWndExtra = 0;
-		wcex.hInstance = hInstance;
-		wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-		wcex.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
-		wcex.lpszClassName = GRS_WND_CLASS_NAME;
-		RegisterClassEx(&wcex);
-
-		DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
-		RECT rtWnd = { 0, 0, iWidth, iHeight };
-		AdjustWindowRect(&rtWnd, dwWndStyle, FALSE);
-
-		hWnd = CreateWindowW(GRS_WND_CLASS_NAME
-			, GRS_WND_TITLE
-			, dwWndStyle
-			, CW_USEDEFAULT
-			, 0
-			, rtWnd.right - rtWnd.left
-			, rtWnd.bottom - rtWnd.top
-			, nullptr
-			, nullptr
-			, hInstance
-			, nullptr);
-
-		if (!hWnd)
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			return FALSE;
-		}
-
-		ShowWindow(hWnd, nCmdShow);
-		UpdateWindow(hWnd);
-
-		//---------------------------------------------------------------------------------------------
-#if defined(_DEBUG)
-		{//打开显示子系统的调试支持
-			ComPtr<ID3D12Debug> debugController;
-			if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
+			if (MAX_PATH == nBytes)
 			{
-				debugController->EnableDebugLayer();
-				// 打开附加的调试支持
-				nDXGIFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
 		}
-#endif
+
 		//---------------------------------------------------------------------------------------------
+		// 1、创建窗口
+		{
+			WNDCLASSEX wcex = {};
+			wcex.cbSize = sizeof(WNDCLASSEX);
+			wcex.style = CS_GLOBALCLASS;
+			wcex.lpfnWndProc = WndProc;
+			wcex.cbClsExtra = 0;
+			wcex.cbWndExtra = 0;
+			wcex.hInstance = hInstance;
+			wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+			wcex.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
+			wcex.lpszClassName = GRS_WND_CLASS_NAME;
+			RegisterClassEx(&wcex);
+
+			DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
+			RECT rtWnd = { 0, 0, iWidth, iHeight };
+			AdjustWindowRect(&rtWnd, dwWndStyle, FALSE);
+
+			hWnd = CreateWindowW(GRS_WND_CLASS_NAME
+				, GRS_WND_TITLE
+				, dwWndStyle
+				, CW_USEDEFAULT
+				, 0
+				, rtWnd.right - rtWnd.left
+				, rtWnd.bottom - rtWnd.top
+				, nullptr
+				, nullptr
+				, hInstance
+				, nullptr);
+
+			if (!hWnd)
+			{
+				return FALSE;
+			}
+
+			ShowWindow(hWnd, nCmdShow);
+			UpdateWindow(hWnd);
+
+		}
+
+		//---------------------------------------------------------------------------------------------
+		{
+#if defined(_DEBUG)
+			{//打开显示子系统的调试支持
+				ComPtr<ID3D12Debug> debugController;
+				if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+				{
+					debugController->EnableDebugLayer();
+					// 打开附加的调试支持
+					nDXGIFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+				}
+			}
+#endif
+			//---------------------------------------------------------------------------------------------
+		}
+
 		//2、创建DXGI Factory对象
-		GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
-		// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-		GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+		{
+			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+		}
 
 		//---------------------------------------------------------------------------------------------
 		//3、枚举适配器，并选择合适的适配器来创建3D设备对象
-		for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
 		{
-			DXGI_ADAPTER_DESC1 desc = {};
-			pIAdapter->GetDesc1(&desc);
-
-			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-			{//跳过软件虚拟适配器设备
-				continue;
-			}
-			//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
-			//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
-			if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
+			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
 			{
-				break;
+				DXGI_ADAPTER_DESC1 desc = {};
+				pIAdapter->GetDesc1(&desc);
+
+				if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+				{//跳过软件虚拟适配器设备
+					continue;
+				}
+				//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
+				//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
+				if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
+				{
+					break;
+				}
 			}
+			//---------------------------------------------------------------------------------------------
+			//4、创建D3D12.1的设备
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3DDevice)));
+
+
 		}
 
 		//---------------------------------------------------------------------------------------------
-		//4、创建D3D12.1的设备
-		GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3DDevice)));
-
-		//---------------------------------------------------------------------------------------------
 		//5、创建直接命令队列
-		D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
-		stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
+		{
+			D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
+			stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
+		}
 
 		//---------------------------------------------------------------------------------------------
 		//6、创建交换链
-		DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
-		stSwapChainDesc.BufferCount = nFrameBackBufCount;
-		stSwapChainDesc.Width = iWidth;
-		stSwapChainDesc.Height = iHeight;
-		stSwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		stSwapChainDesc.SampleDesc.Count = 1;
-
-		GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
-			pICommandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
-			hWnd,
-			&stSwapChainDesc,
-			nullptr,
-			nullptr,
-			&pISwapChain1
-		));
-
-		//---------------------------------------------------------------------------------------------
-		//7、得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
-		//注意此处使用了高版本的SwapChain接口的函数
-		GRS_THROW_IF_FAILED(pISwapChain1.As(&pISwapChain3));
-		nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-		//---------------------------------------------------------------------------------------------
-		//8、创建RTV(渲染目标视图)描述符堆(这里堆的含义应当理解为数组或者固定大小元素的固定大小显存池)
-		D3D12_DESCRIPTOR_HEAP_DESC stRTVHeapDesc = {};
-		stRTVHeapDesc.NumDescriptors = nFrameBackBufCount;
-		stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
-		//得到每个描述符元素的大小
-		nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-		//---------------------------------------------------------------------------------------------
-		//9、创建RTV的描述符
-		CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
-		for (UINT i = 0; i < nFrameBackBufCount; i++)
 		{
-			GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
-			pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
-			stRTVHandle.Offset(1, nRTVDescriptorSize);
+			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
+			stSwapChainDesc.BufferCount = nFrameBackBufCount;
+			stSwapChainDesc.Width = iWidth;
+			stSwapChainDesc.Height = iHeight;
+			stSwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+			stSwapChainDesc.SampleDesc.Count = 1;
+
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
+				pICommandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
+				hWnd,
+				&stSwapChainDesc,
+				nullptr,
+				nullptr,
+				&pISwapChain1
+			));
+
+			//---------------------------------------------------------------------------------------------
+			//7、得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
+			//注意此处使用了高版本的SwapChain接口的函数
+			GRS_THROW_IF_FAILED(pISwapChain1.As(&pISwapChain3));
+			nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
+			//---------------------------------------------------------------------------------------------
+			//8、创建RTV(渲染目标视图)描述符堆(这里堆的含义应当理解为数组或者固定大小元素的固定大小显存池)
+			D3D12_DESCRIPTOR_HEAP_DESC stRTVHeapDesc = {};
+			stRTVHeapDesc.NumDescriptors = nFrameBackBufCount;
+			stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
+			//得到每个描述符元素的大小
+			nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+			//---------------------------------------------------------------------------------------------
+			//9、创建RTV的描述符
+			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+			for (UINT i = 0; i < nFrameBackBufCount; i++)
+			{
+				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
+				pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
+				stRTVHandle.Offset(1, nRTVDescriptorSize);
+			}
 		}
 
 		//---------------------------------------------------------------------------------------------
 		//10、创建SRV堆 (Shader Resource View Heap)
-		D3D12_DESCRIPTOR_HEAP_DESC stSRVHeapDesc = {};
-		stSRVHeapDesc.NumDescriptors = 1;
-		stSRVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		stSRVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stSRVHeapDesc, IID_PPV_ARGS(&pISRVHeap)));
+		{
+			D3D12_DESCRIPTOR_HEAP_DESC stSRVHeapDesc = {};
+			stSRVHeapDesc.NumDescriptors = 1;
+			stSRVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			stSRVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stSRVHeapDesc, IID_PPV_ARGS(&pISRVHeap)));
+		}
 
 		//---------------------------------------------------------------------------------------------
 		//11、创建根描述符
-		D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
-		// 检测是否支持V1.1版本的根签名
-		stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		if (FAILED(pID3DDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
 		{
-			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+			D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
+			// 检测是否支持V1.1版本的根签名
+			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+			if (FAILED(pID3DDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
+			{
+				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+			}
+			// 在GPU上执行SetGraphicsRootDescriptorTable后，我们不修改命令列表中的SRV，因此我们可以使用默认Rang行为:
+			// D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE
+			CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[1];
+			stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+
+			CD3DX12_ROOT_PARAMETER1 stRootParameters[1];
+			stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_PIXEL);
+
+			D3D12_STATIC_SAMPLER_DESC stSamplerDesc = {};
+			stSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+			stSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+			stSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+			stSamplerDesc.MipLODBias = 0;
+			stSamplerDesc.MaxAnisotropy = 0;
+			stSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			stSamplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+			stSamplerDesc.MinLOD = 0.0f;
+			stSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+			stSamplerDesc.ShaderRegister = 0;
+			stSamplerDesc.RegisterSpace = 0;
+			stSamplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
+			stRootSignatureDesc.Init_1_1(_countof(stRootParameters), stRootParameters
+				, 1, &stSamplerDesc
+				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+			ComPtr<ID3DBlob> pISignatureBlob;
+			ComPtr<ID3DBlob> pIErrorBlob;
+			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
+				, stFeatureData.HighestVersion
+				, &pISignatureBlob
+				, &pIErrorBlob));
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateRootSignature(0
+				, pISignatureBlob->GetBufferPointer()
+				, pISignatureBlob->GetBufferSize()
+				, IID_PPV_ARGS(&pIRootSignature)));
 		}
-		// 在GPU上执行SetGraphicsRootDescriptorTable后，我们不修改命令列表中的SRV，因此我们可以使用默认Rang行为:
-		// D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE
-		CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[1];
-		stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-
-		CD3DX12_ROOT_PARAMETER1 stRootParameters[1];
-		stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_PIXEL);
-
-		D3D12_STATIC_SAMPLER_DESC stSamplerDesc = {};
-		stSamplerDesc.Filter			= D3D12_FILTER_MIN_MAG_MIP_POINT;
-		stSamplerDesc.AddressU			= D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-		stSamplerDesc.AddressV			= D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-		stSamplerDesc.AddressW			= D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-		stSamplerDesc.MipLODBias		= 0;
-		stSamplerDesc.MaxAnisotropy		= 0;
-		stSamplerDesc.ComparisonFunc	= D3D12_COMPARISON_FUNC_NEVER;
-		stSamplerDesc.BorderColor		= D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-		stSamplerDesc.MinLOD			= 0.0f;
-		stSamplerDesc.MaxLOD			= D3D12_FLOAT32_MAX;
-		stSamplerDesc.ShaderRegister	= 0;
-		stSamplerDesc.RegisterSpace		= 0;
-		stSamplerDesc.ShaderVisibility	= D3D12_SHADER_VISIBILITY_PIXEL;
-
-		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
-		stRootSignatureDesc.Init_1_1(_countof(stRootParameters), stRootParameters
-			, 1, &stSamplerDesc
-			, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-		ComPtr<ID3DBlob> pISignatureBlob;
-		ComPtr<ID3DBlob> pIErrorBlob;
-		GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
-			, stFeatureData.HighestVersion
-			, &pISignatureBlob
-			, &pIErrorBlob));
-
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateRootSignature(0
-			, pISignatureBlob->GetBufferPointer()
-			, pISignatureBlob->GetBufferSize()
-			, IID_PPV_ARGS(&pIRootSignature)));
 
 		//---------------------------------------------------------------------------------------------
 		// 12、编译Shader创建渲染管线状态对象
-		ComPtr<ID3DBlob> pIBlobVertexShader;
-		ComPtr<ID3DBlob> pIBlobPixelShader;
-#if defined(_DEBUG)
-		// Enable better shader debugging with the graphics debugging tools.
-		UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-		UINT compileFlags = 0;
-#endif
-		TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\2-D3D12WICTexture\\Shader\\Texture.hlsl");
-		GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-			, "VSMain", "vs_5_0", compileFlags, 0, &pIBlobVertexShader, nullptr));
-		GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-			, "PSMain", "ps_5_0", compileFlags, 0, &pIBlobPixelShader, nullptr));
-
-		// Define the vertex input layout.
-		D3D12_INPUT_ELEMENT_DESC stInputElementDescs[] =
 		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-		};
+			ComPtr<ID3DBlob> pIBlobVertexShader;
+			ComPtr<ID3DBlob> pIBlobPixelShader;
+#if defined(_DEBUG)
+			// Enable better shader debugging with the graphics debugging tools.
+			UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#else
+			UINT compileFlags = 0;
+#endif
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\Texture.hlsl"), pszAppPath);
 
-		// 创建 graphics pipeline state object (PSO)对象
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
-		stPSODesc.InputLayout = { stInputElementDescs, _countof(stInputElementDescs) };
-		stPSODesc.pRootSignature = pIRootSignature.Get();
-		stPSODesc.VS = CD3DX12_SHADER_BYTECODE(pIBlobVertexShader.Get());
-		stPSODesc.PS = CD3DX12_SHADER_BYTECODE(pIBlobPixelShader.Get());
-		stPSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		stPSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-		stPSODesc.DepthStencilState.DepthEnable = FALSE;
-		stPSODesc.DepthStencilState.StencilEnable = FALSE;
-		stPSODesc.SampleMask = UINT_MAX;
-		stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		stPSODesc.NumRenderTargets = 1;
-		stPSODesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		stPSODesc.SampleDesc.Count = 1;
+			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+				, "VSMain", "vs_5_0", compileFlags, 0, &pIBlobVertexShader, nullptr));
+			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+				, "PSMain", "ps_5_0", compileFlags, 0, &pIBlobPixelShader, nullptr));
 
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateGraphicsPipelineState(&stPSODesc
-			, IID_PPV_ARGS(&pIPipelineState)));
+			// Define the vertex input layout.
+			D3D12_INPUT_ELEMENT_DESC stInputElementDescs[] =
+			{
+				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+			};
+
+			// 创建 graphics pipeline state object (PSO)对象
+			D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
+			stPSODesc.InputLayout = { stInputElementDescs, _countof(stInputElementDescs) };
+			stPSODesc.pRootSignature = pIRootSignature.Get();
+			stPSODesc.VS = CD3DX12_SHADER_BYTECODE(pIBlobVertexShader.Get());
+			stPSODesc.PS = CD3DX12_SHADER_BYTECODE(pIBlobPixelShader.Get());
+			stPSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+			stPSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+			stPSODesc.DepthStencilState.DepthEnable = FALSE;
+			stPSODesc.DepthStencilState.StencilEnable = FALSE;
+			stPSODesc.SampleMask = UINT_MAX;
+			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+			stPSODesc.NumRenderTargets = 1;
+			stPSODesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+			stPSODesc.SampleDesc.Count = 1;
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateGraphicsPipelineState(&stPSODesc
+				, IID_PPV_ARGS(&pIPipelineState)));
+		}
+
 
 		//---------------------------------------------------------------------------------------------
 		// 13、创建命令列表分配器
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
-			, IID_PPV_ARGS(&pICommandAllocator)));
+		{
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
+				, IID_PPV_ARGS(&pICommandAllocator)));
 
-		//---------------------------------------------------------------------------------------------
-		// 14、创建图形命令列表
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
-			, pICommandAllocator.Get(), pIPipelineState.Get(), IID_PPV_ARGS(&pICommandList)));
+			//---------------------------------------------------------------------------------------------
+			// 14、创建图形命令列表
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
+				, pICommandAllocator.Get(), pIPipelineState.Get(), IID_PPV_ARGS(&pICommandList)));
+
+		}
 
 		//---------------------------------------------------------------------------------------------
 		// 15、创建顶点缓冲
 		// 定义正方形的3D数据结构
 		GRS_VERTEX stTriangleVertices[] =
 		{
-			{ { -0.25f* fAspectRatio, -0.25f * fAspectRatio, 0.0f}, { 0.0f, 1.0f } },	// Bottom left.
-			{ { -0.25f* fAspectRatio, 0.25f * fAspectRatio, 0.0f}, { 0.0f, 0.0f }  },	// Top left.
-			{ { 0.25f* fAspectRatio, -0.25f * fAspectRatio, 0.0f }, { 1.0f, 1.0f } },	// Bottom right.
-			{ { 0.25f* fAspectRatio, 0.25f * fAspectRatio, 0.0f},  { 1.0f, 0.0f }   },		// Top right.
+			{ { -0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f}, { 0.0f, 1.0f } },	// Bottom left.
+			{ { -0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f}, { 0.0f, 0.0f }  },	// Top left.
+			{ { 0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f }, { 1.0f, 1.0f } },	// Bottom right.
+			{ { 0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f},  { 1.0f, 0.0f }   },		// Top right.
 		};
-
 		const UINT nVertexBufferSize = sizeof(stTriangleVertices);
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(nVertexBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&pIVertexBuffer)));
 
-		UINT8* pVertexDataBegin = nullptr;
-		CD3DX12_RANGE stReadRange(0, 0);		// We do not intend to read from this resource on the CPU.
-		GRS_THROW_IF_FAILED(pIVertexBuffer->Map(0, &stReadRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-		memcpy(pVertexDataBegin, stTriangleVertices, sizeof(stTriangleVertices));
-		pIVertexBuffer->Unmap(0, nullptr);
+		{
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(nVertexBufferSize),
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS(&pIVertexBuffer)));
 
-		stVertexBufferView.BufferLocation = pIVertexBuffer->GetGPUVirtualAddress();
-		stVertexBufferView.StrideInBytes = sizeof(GRS_VERTEX);
-		stVertexBufferView.SizeInBytes = nVertexBufferSize;
+			UINT8* pVertexDataBegin = nullptr;
+			CD3DX12_RANGE stReadRange(0, 0);		// We do not intend to read from this resource on the CPU.
+			GRS_THROW_IF_FAILED(pIVertexBuffer->Map(0, &stReadRange, reinterpret_cast<void**>(&pVertexDataBegin)));
+			memcpy(pVertexDataBegin, stTriangleVertices, sizeof(stTriangleVertices));
+			pIVertexBuffer->Unmap(0, nullptr);
+
+			stVertexBufferView.BufferLocation = pIVertexBuffer->GetGPUVirtualAddress();
+			stVertexBufferView.StrideInBytes = sizeof(GRS_VERTEX);
+			stVertexBufferView.SizeInBytes = nVertexBufferSize;
+
+		}
 
 		//---------------------------------------------------------------------------------------------
 		// 16、使用WIC创建并加载一个2D纹理
-		//使用纯COM方式创建WIC类厂对象，也是调用WIC第一步要做的事情
-		GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pIWICFactory)));
-
-		//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
-		WCHAR* pszTexcuteFileName = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\2-D3D12WICTexture\\Texture\\bear.jpg");
-		GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
-			pszTexcuteFileName,              // 文件名
-			NULL,                            // 不指定解码器，使用默认
-			GENERIC_READ,                    // 访问权限
-			WICDecodeMetadataCacheOnDemand,  // 若需要就缓冲数据 
-			&pIWICDecoder                    // 解码器对象
-		));
-
-		// 获取第一帧图片(因为GIF等格式文件可能会有多帧图片，其他的格式一般只有一帧图片)
-		// 实际解析出来的往往是位图格式数据
-		GRS_THROW_IF_FAILED(pIWICDecoder->GetFrame(0, &pIWICFrame));
-		
-		WICPixelFormatGUID wpf = {};
-		//获取WIC图片格式
-		GRS_THROW_IF_FAILED(pIWICFrame->GetPixelFormat(&wpf));
-		GUID tgFormat = {};
-
-		//通过第一道转换之后获取DXGI的等价格式
-		if ( GetTargetPixelFormat(&wpf, &tgFormat) )
 		{
-			stTextureFormat = GetDXGIFormatFromPixelFormat(&tgFormat);
-		}
+			//使用纯COM方式创建WIC类厂对象，也是调用WIC第一步要做的事情
+			GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pIWICFactory)));
 
-		if (DXGI_FORMAT_UNKNOWN == stTextureFormat)
-		{// 不支持的图片格式 目前退出了事 
-		 // 一般 在实际的引擎当中都会提供纹理格式转换工具，
-		 // 图片都需要提前转换好，所以不会出现不支持的现象
-			throw CGRSCOMException(S_FALSE);
-		}
+			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
+			WCHAR pszTexcuteFileName[MAX_PATH] = {};
+			StringCchPrintfW(pszTexcuteFileName, MAX_PATH, _T("%s\\Texture\\bear.jpg"), pszAppPath);
 
-		// 定义一个位图格式的图片数据对象接口
-		ComPtr<IWICBitmapSource>pIBMP;
-
-		if ( !InlineIsEqualGUID(wpf, tgFormat) )
-		{// 这个判断很重要，如果原WIC格式不是直接能转换为DXGI格式的图片时
-		 // 我们需要做的就是转换图片格式为能够直接对应DXGI格式的形式
-			//创建图片格式转换器
-			ComPtr<IWICFormatConverter> pIConverter;
-			GRS_THROW_IF_FAILED(pIWICFactory->CreateFormatConverter(&pIConverter));
-
-			//初始化一个图片转换器，实际也就是将图片数据进行了格式转换
-			GRS_THROW_IF_FAILED(pIConverter->Initialize(
-				pIWICFrame.Get(),                // 输入原图片数据
-				tgFormat,						 // 指定待转换的目标格式
-				WICBitmapDitherTypeNone,         // 指定位图是否有调色板，现代都是真彩位图，不用调色板，所以为None
-				NULL,                            // 指定调色板指针
-				0.f,                             // 指定Alpha阀值
-				WICBitmapPaletteTypeCustom       // 调色板类型，实际没有使用，所以指定为Custom
+			GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
+				pszTexcuteFileName,              // 文件名
+				NULL,                            // 不指定解码器，使用默认
+				GENERIC_READ,                    // 访问权限
+				WICDecodeMetadataCacheOnDemand,  // 若需要就缓冲数据 
+				&pIWICDecoder                    // 解码器对象
 			));
-			// 调用QueryInterface方法获得对象的位图数据源接口
-			GRS_THROW_IF_FAILED(pIConverter.As(&pIBMP));
+
+			// 获取第一帧图片(因为GIF等格式文件可能会有多帧图片，其他的格式一般只有一帧图片)
+			// 实际解析出来的往往是位图格式数据
+			GRS_THROW_IF_FAILED(pIWICDecoder->GetFrame(0, &pIWICFrame));
+
+			WICPixelFormatGUID wpf = {};
+			//获取WIC图片格式
+			GRS_THROW_IF_FAILED(pIWICFrame->GetPixelFormat(&wpf));
+			GUID tgFormat = {};
+
+			//通过第一道转换之后获取DXGI的等价格式
+			if (GetTargetPixelFormat(&wpf, &tgFormat))
+			{
+				stTextureFormat = GetDXGIFormatFromPixelFormat(&tgFormat);
+			}
+
+			if (DXGI_FORMAT_UNKNOWN == stTextureFormat)
+			{// 不支持的图片格式 目前退出了事 
+			 // 一般 在实际的引擎当中都会提供纹理格式转换工具，
+			 // 图片都需要提前转换好，所以不会出现不支持的现象
+				throw CGRSCOMException(S_FALSE);
+			}
+
+			// 定义一个位图格式的图片数据对象接口
+			ComPtr<IWICBitmapSource>pIBMP;
+
+			if (!InlineIsEqualGUID(wpf, tgFormat))
+			{// 这个判断很重要，如果原WIC格式不是直接能转换为DXGI格式的图片时
+			 // 我们需要做的就是转换图片格式为能够直接对应DXGI格式的形式
+				//创建图片格式转换器
+				ComPtr<IWICFormatConverter> pIConverter;
+				GRS_THROW_IF_FAILED(pIWICFactory->CreateFormatConverter(&pIConverter));
+
+				//初始化一个图片转换器，实际也就是将图片数据进行了格式转换
+				GRS_THROW_IF_FAILED(pIConverter->Initialize(
+					pIWICFrame.Get(),                // 输入原图片数据
+					tgFormat,						 // 指定待转换的目标格式
+					WICBitmapDitherTypeNone,         // 指定位图是否有调色板，现代都是真彩位图，不用调色板，所以为None
+					NULL,                            // 指定调色板指针
+					0.f,                             // 指定Alpha阀值
+					WICBitmapPaletteTypeCustom       // 调色板类型，实际没有使用，所以指定为Custom
+				));
+				// 调用QueryInterface方法获得对象的位图数据源接口
+				GRS_THROW_IF_FAILED(pIConverter.As(&pIBMP));
+			}
+			else
+			{
+				//图片数据格式不需要转换，直接获取其位图数据源接口
+				GRS_THROW_IF_FAILED(pIWICFrame.As(&pIBMP));
+			}
+			//获得图片大小（单位：像素）
+			GRS_THROW_IF_FAILED(pIBMP->GetSize(&nTextureW, &nTextureH));
+
+			//获取图片像素的位大小的BPP（Bits Per Pixel）信息，用以计算图片行数据的真实大小（单位：字节）
+			ComPtr<IWICComponentInfo> pIWICmntinfo;
+			GRS_THROW_IF_FAILED(pIWICFactory->CreateComponentInfo(tgFormat, pIWICmntinfo.GetAddressOf()));
+
+			WICComponentType type;
+			GRS_THROW_IF_FAILED(pIWICmntinfo->GetComponentType(&type));
+
+			if (type != WICPixelFormat)
+			{
+				throw CGRSCOMException(S_FALSE);
+			}
+
+			ComPtr<IWICPixelFormatInfo> pIWICPixelinfo;
+			GRS_THROW_IF_FAILED(pIWICmntinfo.As(&pIWICPixelinfo));
+
+			// 到这里终于可以得到BPP了，这也是我看的比较吐血的地方，为了BPP居然饶了这么多环节
+			GRS_THROW_IF_FAILED(pIWICPixelinfo->GetBitsPerPixel(&nBPP));
+
+			// 计算图片实际的行大小（单位：字节），这里使用了一个上取整除法即（A+B-1）/B ，
+			// 这曾经被传说是微软的面试题,希望你已经对它了如指掌
+			UINT nPicRowPitch = (uint64_t(nTextureW) * uint64_t(nBPP) + 7u) / 8u;
+
+
+			//---------------------------------------------------------------------------------------------
+
+			stTextureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			stTextureDesc.MipLevels = 1;
+			stTextureDesc.Format = stTextureFormat; //DXGI_FORMAT_R8G8B8A8_UNORM;
+			stTextureDesc.Width = nTextureW;
+			stTextureDesc.Height = nTextureH;
+			stTextureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+			stTextureDesc.DepthOrArraySize = 1;
+			stTextureDesc.SampleDesc.Count = 1;
+			stTextureDesc.SampleDesc.Quality = 0;
+
+
+			//创建默认堆上的资源，类型是Texture2D，GPU对默认堆资源的访问速度是最快的
+			//因为纹理资源一般是不易变的资源，所以我们通常使用上传堆复制到默认堆中
+			//在传统的D3D11及以前的D3D接口中，这些过程都被封装了，我们只能指定创建时的类型为默认堆 
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
+				, D3D12_HEAP_FLAG_NONE
+				, &stTextureDesc				//可以使用CD3DX12_RESOURCE_DESC::Tex2D来简化结构体的初始化
+				, D3D12_RESOURCE_STATE_COPY_DEST
+				, nullptr
+				, IID_PPV_ARGS(&pITexture)));
+
+			//获取上传堆资源缓冲的大小，这个尺寸通常大于实际图片的尺寸
+			const UINT64 n64UploadBufferSize = GetRequiredIntermediateSize(pITexture.Get(), 0, 1);
+
+			// 创建用于上传纹理的资源,注意其类型是Buffer
+			// 上传堆对于GPU访问来说性能是很差的，
+			// 所以对于几乎不变的数据尤其像纹理都是
+			// 通过它来上传至GPU访问更高效的默认堆中
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(n64UploadBufferSize),
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS(&pITextureUpload)));
+
+			//按照资源缓冲大小来分配实际图片数据存储的内存大小
+			void* pbPicData = ::HeapAlloc(::GetProcessHeap(), HEAP_ZERO_MEMORY, n64UploadBufferSize);
+			if (nullptr == pbPicData)
+			{
+				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			//从图片中读取出数据
+			GRS_THROW_IF_FAILED(pIBMP->CopyPixels(nullptr
+				, nPicRowPitch
+				, static_cast<UINT>(nPicRowPitch * nTextureH)   //注意这里才是图片数据真实的大小，这个值通常小于缓冲的大小
+				, reinterpret_cast<BYTE*>(pbPicData)));
+
+			//{//下面这段代码来自DX12的示例，直接通过填充缓冲绘制了一个黑白方格的纹理
+			// //还原这段代码，然后注释上面的CopyPixels调用可以看到黑白方格纹理的效果
+			//	const UINT rowPitch = nPicRowPitch; //nTextureW * 4; //static_cast<UINT>(n64UploadBufferSize / nTextureH);
+//	const UINT cellPitch = rowPitch >> 3;		// The width of a cell in the checkboard texture.
+//	const UINT cellHeight = nTextureW >> 3;	// The height of a cell in the checkerboard texture.
+//	const UINT textureSize = static_cast<UINT>(n64UploadBufferSize);
+//	UINT nTexturePixelSize = static_cast<UINT>(n64UploadBufferSize / nTextureH / nTextureW);
+
+//	UINT8* pData = reinterpret_cast<UINT8*>(pbPicData);
+
+//	for (UINT n = 0; n < textureSize; n += nTexturePixelSize)
+//	{
+//		UINT x = n % rowPitch;
+//		UINT y = n / rowPitch;
+//		UINT i = x / cellPitch;
+//		UINT j = y / cellHeight;
+
+//		if (i % 2 == j % 2)
+//		{
+//			pData[n] = 0x00;		// R
+//			pData[n + 1] = 0x00;	// G
+//			pData[n + 2] = 0x00;	// B
+//			pData[n + 3] = 0xff;	// A
+//		}
+//		else
+//		{
+//			pData[n] = 0xff;		// R
+//			pData[n + 1] = 0xff;	// G
+//			pData[n + 2] = 0xff;	// B
+//			pData[n + 3] = 0xff;	// A
+//		}
+//	}
+//}
+
+//获取向上传堆拷贝纹理数据的一些纹理转换尺寸信息
+//对于复杂的DDS纹理这是非常必要的过程
+			UINT64 n64RequiredSize = 0u;
+			UINT   nNumSubresources = 1u;  //我们只有一副图片，即子资源个数为1
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayouts = {};
+			UINT64 n64TextureRowSizes = 0u;
+			UINT   nTextureRowNum = 0u;
+
+			D3D12_RESOURCE_DESC stDestDesc = pITexture->GetDesc();
+
+			pID3DDevice->GetCopyableFootprints(&stDestDesc
+				, 0
+				, nNumSubresources
+				, 0
+				, &stTxtLayouts
+				, &nTextureRowNum
+				, &n64TextureRowSizes
+				, &n64RequiredSize);
+
+			//因为上传堆实际就是CPU传递数据到GPU的中介
+			//所以我们可以使用熟悉的Map方法将它先映射到CPU内存地址中
+			//然后我们按行将数据复制到上传堆中
+			//需要注意的是之所以按行拷贝是因为GPU资源的行大小
+			//与实际图片的行大小是有差异的,二者的内存边界对齐要求是不一样的
+			BYTE* pData = nullptr;
+			GRS_THROW_IF_FAILED(pITextureUpload->Map(0, NULL, reinterpret_cast<void**>(&pData)));
+
+			BYTE* pDestSlice = reinterpret_cast<BYTE*>(pData) + stTxtLayouts.Offset;
+			const BYTE* pSrcSlice = reinterpret_cast<const BYTE*>(pbPicData);
+			for (UINT y = 0; y < nTextureRowNum; ++y)
+			{
+				memcpy(pDestSlice + static_cast<SIZE_T>(stTxtLayouts.Footprint.RowPitch) * y
+					, pSrcSlice + static_cast<SIZE_T>(nPicRowPitch) * y
+					, nPicRowPitch);
+			}
+			//取消映射 对于易变的数据如每帧的变换矩阵等数据，可以撒懒不用Unmap了，
+			//让它常驻内存,以提高整体性能，因为每次Map和Unmap是很耗时的操作
+			//因为现在起码都是64位系统和应用了，地址空间是足够的，被长期占用不会影响什么
+			pITextureUpload->Unmap(0, NULL);
+
+			//释放图片数据，做一个干净的程序员
+			::HeapFree(::GetProcessHeap(), 0, pbPicData);
+
+			//向命令队列发出从上传堆复制纹理数据到默认堆的命令
+			CD3DX12_TEXTURE_COPY_LOCATION Dst(pITexture.Get(), 0);
+			CD3DX12_TEXTURE_COPY_LOCATION Src(pITextureUpload.Get(), stTxtLayouts);
+			pICommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+
+			//设置一个资源屏障，同步并确认复制操作完成
+			//直接使用结构体然后调用的形式
+			D3D12_RESOURCE_BARRIER stResBar = {};
+			stResBar.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stResBar.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stResBar.Transition.pResource = pITexture.Get();
+			stResBar.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+			stResBar.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			stResBar.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+			pICommandList->ResourceBarrier(1, &stResBar);
+
+			//或者使用D3DX12库中的工具类调用的等价形式，下面的方式更简洁一些
+			//pICommandList->ResourceBarrier(1
+			//	, &CD3DX12_RESOURCE_BARRIER::Transition(pITexture.Get()
+			//	, D3D12_RESOURCE_STATE_COPY_DEST
+			//	, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+			//);
 		}
-		else
-		{
-			//图片数据格式不需要转换，直接获取其位图数据源接口
-			GRS_THROW_IF_FAILED(pIWICFrame.As(&pIBMP));
-		}
-		//获得图片大小（单位：像素）
-		GRS_THROW_IF_FAILED(pIBMP->GetSize(&nTextureW, &nTextureH));
-	
-		//获取图片像素的位大小的BPP（Bits Per Pixel）信息，用以计算图片行数据的真实大小（单位：字节）
-		ComPtr<IWICComponentInfo> pIWICmntinfo;
-		GRS_THROW_IF_FAILED(pIWICFactory->CreateComponentInfo(tgFormat, pIWICmntinfo.GetAddressOf()));
-
-		WICComponentType type;
-		GRS_THROW_IF_FAILED(pIWICmntinfo->GetComponentType(&type));
-
-		if (type != WICPixelFormat)
-		{
-			throw CGRSCOMException(S_FALSE);
-		}
-
-		ComPtr<IWICPixelFormatInfo> pIWICPixelinfo;
-		GRS_THROW_IF_FAILED(pIWICmntinfo.As(&pIWICPixelinfo));
-
-		// 到这里终于可以得到BPP了，这也是我看的比较吐血的地方，为了BPP居然饶了这么多环节
-		GRS_THROW_IF_FAILED(pIWICPixelinfo->GetBitsPerPixel(&nBPP));
-
-		// 计算图片实际的行大小（单位：字节），这里使用了一个上取整除法即（A+B-1）/B ，
-		// 这曾经被传说是微软的面试题,希望你已经对它了如指掌
-		UINT nPicRowPitch = (uint64_t(nTextureW) * uint64_t(nBPP) + 7u) / 8u;
-		//---------------------------------------------------------------------------------------------
-
-		ComPtr<ID3D12Resource> pITextureUpload;
-
-		D3D12_RESOURCE_DESC stTextureDesc	= {};
-		stTextureDesc.Dimension				= D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		stTextureDesc.MipLevels				= 1;
-		stTextureDesc.Format				= stTextureFormat; //DXGI_FORMAT_R8G8B8A8_UNORM;
-		stTextureDesc.Width					= nTextureW;
-		stTextureDesc.Height				= nTextureH;
-		stTextureDesc.Flags					= D3D12_RESOURCE_FLAG_NONE;
-		stTextureDesc.DepthOrArraySize		= 1;
-		stTextureDesc.SampleDesc.Count		= 1;
-		stTextureDesc.SampleDesc.Quality	= 0;
-		
-		
-		//创建默认堆上的资源，类型是Texture2D，GPU对默认堆资源的访问速度是最快的
-		//因为纹理资源一般是不易变的资源，所以我们通常使用上传堆复制到默认堆中
-		//在传统的D3D11及以前的D3D接口中，这些过程都被封装了，我们只能指定创建时的类型为默认堆 
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
-			, D3D12_HEAP_FLAG_NONE
-			, &stTextureDesc				//可以使用CD3DX12_RESOURCE_DESC::Tex2D来简化结构体的初始化
-			, D3D12_RESOURCE_STATE_COPY_DEST
-			, nullptr
-			, IID_PPV_ARGS(&pITexture)));
-
-		//获取上传堆资源缓冲的大小，这个尺寸通常大于实际图片的尺寸
-		const UINT64 n64UploadBufferSize = GetRequiredIntermediateSize(pITexture.Get(), 0, 1);
-
-		// 创建用于上传纹理的资源,注意其类型是Buffer
-		// 上传堆对于GPU访问来说性能是很差的，
-		// 所以对于几乎不变的数据尤其像纹理都是
-		// 通过它来上传至GPU访问更高效的默认堆中
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(n64UploadBufferSize),
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&pITextureUpload)));
-		
-		//按照资源缓冲大小来分配实际图片数据存储的内存大小
-		void* pbPicData = ::HeapAlloc(::GetProcessHeap(), HEAP_ZERO_MEMORY, n64UploadBufferSize);
-		if (nullptr == pbPicData)
-		{
-			throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
-		}
-
-		//从图片中读取出数据
-		GRS_THROW_IF_FAILED(pIBMP->CopyPixels(nullptr
-			, nPicRowPitch
-			, static_cast<UINT>(nPicRowPitch * nTextureH)   //注意这里才是图片数据真实的大小，这个值通常小于缓冲的大小
-			, reinterpret_cast<BYTE*>(pbPicData)));
-
-		//{//下面这段代码来自DX12的示例，直接通过填充缓冲绘制了一个黑白方格的纹理
-		// //还原这段代码，然后注释上面的CopyPixels调用可以看到黑白方格纹理的效果
-		//	const UINT rowPitch = nPicRowPitch; //nTextureW * 4; //static_cast<UINT>(n64UploadBufferSize / nTextureH);
-		//	const UINT cellPitch = rowPitch >> 3;		// The width of a cell in the checkboard texture.
-		//	const UINT cellHeight = nTextureW >> 3;	// The height of a cell in the checkerboard texture.
-		//	const UINT textureSize = static_cast<UINT>(n64UploadBufferSize);
-		//	UINT nTexturePixelSize = static_cast<UINT>(n64UploadBufferSize / nTextureH / nTextureW);
-
-		//	UINT8* pData = reinterpret_cast<UINT8*>(pbPicData);
-
-		//	for (UINT n = 0; n < textureSize; n += nTexturePixelSize)
-		//	{
-		//		UINT x = n % rowPitch;
-		//		UINT y = n / rowPitch;
-		//		UINT i = x / cellPitch;
-		//		UINT j = y / cellHeight;
-
-		//		if (i % 2 == j % 2)
-		//		{
-		//			pData[n] = 0x00;		// R
-		//			pData[n + 1] = 0x00;	// G
-		//			pData[n + 2] = 0x00;	// B
-		//			pData[n + 3] = 0xff;	// A
-		//		}
-		//		else
-		//		{
-		//			pData[n] = 0xff;		// R
-		//			pData[n + 1] = 0xff;	// G
-		//			pData[n + 2] = 0xff;	// B
-		//			pData[n + 3] = 0xff;	// A
-		//		}
-		//	}
-		//}
-
-		//获取向上传堆拷贝纹理数据的一些纹理转换尺寸信息
-		//对于复杂的DDS纹理这是非常必要的过程
-		UINT64 n64RequiredSize = 0u;
-		UINT   nNumSubresources = 1u;  //我们只有一副图片，即子资源个数为1
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayouts = {};
-		UINT64 n64TextureRowSizes = 0u;
-		UINT   nTextureRowNum = 0u;
-
-		D3D12_RESOURCE_DESC stDestDesc = pITexture->GetDesc();
-
-		pID3DDevice->GetCopyableFootprints(&stDestDesc
-			, 0
-			, nNumSubresources
-			, 0
-			, &stTxtLayouts
-			, &nTextureRowNum
-			, &n64TextureRowSizes
-			, &n64RequiredSize);
-
-		//因为上传堆实际就是CPU传递数据到GPU的中介
-		//所以我们可以使用熟悉的Map方法将它先映射到CPU内存地址中
-		//然后我们按行将数据复制到上传堆中
-		//需要注意的是之所以按行拷贝是因为GPU资源的行大小
-		//与实际图片的行大小是有差异的,二者的内存边界对齐要求是不一样的
-		BYTE* pData = nullptr;
-		GRS_THROW_IF_FAILED(pITextureUpload->Map(0, NULL, reinterpret_cast<void**>(&pData)));
-		
-		BYTE* pDestSlice = reinterpret_cast<BYTE*>(pData) + stTxtLayouts.Offset;
-		const BYTE* pSrcSlice = reinterpret_cast<const BYTE*>(pbPicData);
-		for (UINT y = 0; y < nTextureRowNum; ++y)
-		{
-			memcpy(pDestSlice + static_cast<SIZE_T>(stTxtLayouts.Footprint.RowPitch) * y
-				, pSrcSlice + static_cast<SIZE_T>(nPicRowPitch) * y
-				, nPicRowPitch );
-		}
-		//取消映射 对于易变的数据如每帧的变换矩阵等数据，可以撒懒不用Unmap了，
-		//让它常驻内存,以提高整体性能，因为每次Map和Unmap是很耗时的操作
-		//因为现在起码都是64位系统和应用了，地址空间是足够的，被长期占用不会影响什么
-		pITextureUpload->Unmap(0, NULL);
-		
-		//释放图片数据，做一个干净的程序员
-		::HeapFree(::GetProcessHeap(), 0, pbPicData);
-
-		//向命令队列发出从上传堆复制纹理数据到默认堆的命令
-		CD3DX12_TEXTURE_COPY_LOCATION Dst(pITexture.Get(), 0);
-		CD3DX12_TEXTURE_COPY_LOCATION Src(pITextureUpload.Get(), stTxtLayouts);
-		pICommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
-		
-		//设置一个资源屏障，同步并确认复制操作完成
-		//直接使用结构体然后调用的形式
-		D3D12_RESOURCE_BARRIER stResBar = {};
-		stResBar.Type					= D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		stResBar.Flags					= D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		stResBar.Transition.pResource	= pITexture.Get();
-		stResBar.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-		stResBar.Transition.StateAfter	= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-		stResBar.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
-		pICommandList->ResourceBarrier(1, &stResBar	);
-
-		//或者使用D3DX12库中的工具类调用的等价形式，下面的方式更简洁一些
-		//pICommandList->ResourceBarrier(1
-		//	, &CD3DX12_RESOURCE_BARRIER::Transition(pITexture.Get()
-		//	, D3D12_RESOURCE_STATE_COPY_DEST
-		//	, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-		//);
 
 		//---------------------------------------------------------------------------------------------
 		// 最终创建SRV描述符
-		D3D12_SHADER_RESOURCE_VIEW_DESC stSRVDesc = {};
-		stSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		stSRVDesc.Format = stTextureDesc.Format;
-		stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		stSRVDesc.Texture2D.MipLevels = 1;
-		pID3DDevice->CreateShaderResourceView(pITexture.Get(), &stSRVDesc, pISRVHeap->GetCPUDescriptorHandleForHeapStart());
+		{
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC stSRVDesc = {};
+			stSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			stSRVDesc.Format = stTextureDesc.Format;
+			stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			stSRVDesc.Texture2D.MipLevels = 1;
+			pID3DDevice->CreateShaderResourceView(pITexture.Get(), &stSRVDesc, pISRVHeap->GetCPUDescriptorHandleForHeapStart());
+		}
 
 		//---------------------------------------------------------------------------------------------
 		// 执行命令列表并等待纹理资源上传完成，这一步是必须的
-		GRS_THROW_IF_FAILED(pICommandList->Close());
-		ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
-		pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		{
+			GRS_THROW_IF_FAILED(pICommandList->Close());
+			ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
+			pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		}
 
 		//---------------------------------------------------------------------------------------------
 		// 17、创建一个同步对象——围栏，用于等待渲染完成，因为现在Draw Call是异步的了
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pIFence)));
-		n64FenceValue = 1;
-
-		//---------------------------------------------------------------------------------------------
-		// 18、创建一个Event同步对象，用于等待围栏事件通知
-		hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		if (hFenceEvent == nullptr)
 		{
-			GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pIFence)));
+			n64FenceValue = 1;
+
+			//---------------------------------------------------------------------------------------------
+			// 18、创建一个Event同步对象，用于等待围栏事件通知
+			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (hFenceEvent == nullptr)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
 		}
 
 		//---------------------------------------------------------------------------------------------
 		// 19、等待纹理资源正式复制完成先
-		const UINT64 fence = n64FenceValue;
-		GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
-		n64FenceValue++;
-
-		//---------------------------------------------------------------------------------------------
-		// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-		if (pIFence->GetCompletedValue() < fence)
 		{
-			GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
-			WaitForSingleObject(hFenceEvent, INFINITE);
+			const UINT64 fence = n64FenceValue;
+			GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
+			n64FenceValue++;
+
+			//---------------------------------------------------------------------------------------------
+			// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
+			if (pIFence->GetCompletedValue() < fence)
+			{
+				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
+				WaitForSingleObject(hFenceEvent, INFINITE);
+			}
+
+			//---------------------------------------------------------------------------------------------
+			//命令分配器先Reset一下，刚才已经执行过了一个复制纹理的命令
+			GRS_THROW_IF_FAILED(pICommandAllocator->Reset());
+			//Reset命令列表，并重新指定命令分配器和PSO对象
+			GRS_THROW_IF_FAILED(pICommandList->Reset(pICommandAllocator.Get(), pIPipelineState.Get()));
+			//---------------------------------------------------------------------------------------------
+
 		}
 		
-		//---------------------------------------------------------------------------------------------
-		//命令分配器先Reset一下，刚才已经执行过了一个复制纹理的命令
-		GRS_THROW_IF_FAILED(pICommandAllocator->Reset());
-		//Reset命令列表，并重新指定命令分配器和PSO对象
-		GRS_THROW_IF_FAILED(pICommandList->Reset(pICommandAllocator.Get(), pIPipelineState.Get()));
-		//---------------------------------------------------------------------------------------------
-		
-
 		//---------------------------------------------------------------------------------------------
 		//20、创建定时器对象，以便于创建高效的消息循环
 		HANDLE phWait = CreateWaitableTimer(NULL, FALSE, NULL);
@@ -813,8 +863,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
-			case 0:
-			case WAIT_TIMEOUT:
+			case 0:			
 			{//计时器时间到
 				//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nFrameIndex);
 				//开始记录命令
@@ -901,6 +950,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						bExit = TRUE;
 					}
 				}
+			}
+			break;
+			case WAIT_TIMEOUT:
+			{
+
 			}
 			break;
 			default:

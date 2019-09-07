@@ -2,30 +2,29 @@
 #define WIN32_LEAN_AND_MEAN // 从 Windows 头中排除极少使用的资料
 #include <windows.h>
 #include <tchar.h>
-//添加WTL支持 方便使用COM
-#include <wrl.h>
-using namespace Microsoft;
-using namespace Microsoft::WRL;
-
+#include <wrl.h>  //添加WTL支持 方便使用COM
+#include <strsafe.h>
 #include <dxgi1_6.h>
-
 #include <DirectXMath.h>
-using namespace DirectX;
 //for d3d12
 #include <d3d12.h>
 #include <d3d12shader.h>
 #include <d3dcompiler.h>
-//linker
-#pragma comment(lib, "dxguid.lib")
-#pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "d3d12.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-
 #if defined(_DEBUG)
 #include <dxgidebug.h>
 #endif
 
 #include "..\WindowsCommons\d3dx12.h"
+
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
+
+//linker
+#pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 Trigger Sample")
@@ -48,37 +47,37 @@ private:
 
 struct GRS_VERTEX
 {
-	XMFLOAT3 position;
-	XMFLOAT4 color;
+	XMFLOAT3 m_vtPos;
+	XMFLOAT4 m_vtColor;
 };
 
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    lpCmdLine, int nCmdShow)
 {
-	const UINT nFrameBackBufCount = 3u;
+	const UINT							nFrameBackBufCount = 3u;
 
-	int iWidth = 1024;
-	int iHeight = 768;
-	UINT nFrameIndex = 0;
-	UINT nFrame = 0;
+	int									iWidth = 1024;
+	int									iHeight = 768;
+	UINT								nFrameIndex = 0;
+	UINT								nFrame = 0;
 
-	UINT nDXGIFactoryFlags = 0U;
-	UINT nRTVDescriptorSize = 0U;
+	UINT								nDXGIFactoryFlags = 0U;
+	UINT								nRTVDescriptorSize = 0U;
 
-	HWND hWnd = nullptr;
-	MSG	msg = {};
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
+	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	float fAspectRatio = 3.0f;
+	float								fAspectRatio = 3.0f;
 
-	D3D12_VERTEX_BUFFER_VIEW stVertexBufferView = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 
-	UINT64 n64FenceValue = 0ui64;
-	HANDLE hFenceEvent = nullptr;
+	UINT64								n64FenceValue = 0ui64;
+	HANDLE								hFenceEvent = nullptr;
 
-
-	CD3DX12_VIEWPORT stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
-	CD3DX12_RECT	 stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
+	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
+	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
@@ -97,42 +96,53 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	try
 	{
-
-		WNDCLASSEX wcex = {};
-		wcex.cbSize = sizeof(WNDCLASSEX);
-		wcex.style = CS_GLOBALCLASS;
-		wcex.lpfnWndProc = WndProc;
-		wcex.cbClsExtra = 0;
-		wcex.cbWndExtra = 0;
-		wcex.hInstance = hInstance;
-		wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-		wcex.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
-		wcex.lpszClassName = GRS_WND_CLASS_NAME;
-		RegisterClassEx(&wcex);
-		
-		DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
-		RECT rtWnd = { 0, 0, iWidth, iHeight };
-		AdjustWindowRect(&rtWnd, dwWndStyle, FALSE);
-
-		hWnd = CreateWindowW(GRS_WND_CLASS_NAME
-			, GRS_WND_TITLE
-			, dwWndStyle
-			, CW_USEDEFAULT
-			, 0
-			, rtWnd.right - rtWnd.left
-			, rtWnd.bottom - rtWnd.top
-			, nullptr
-			, nullptr
-			, hInstance
-			, nullptr);
-
-		if (!hWnd)
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			return FALSE;
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
+			if (MAX_PATH == nBytes)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
 		}
 
-		ShowWindow(hWnd, nCmdShow);
-		UpdateWindow(hWnd);
+		// 创建窗口
+		{
+			WNDCLASSEX wcex = {};
+			wcex.cbSize = sizeof(WNDCLASSEX);
+			wcex.style = CS_GLOBALCLASS;
+			wcex.lpfnWndProc = WndProc;
+			wcex.cbClsExtra = 0;
+			wcex.cbWndExtra = 0;
+			wcex.hInstance = hInstance;
+			wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+			wcex.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
+			wcex.lpszClassName = GRS_WND_CLASS_NAME;
+			RegisterClassEx(&wcex);
+
+			DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
+			RECT rtWnd = { 0, 0, iWidth, iHeight };
+			AdjustWindowRect(&rtWnd, dwWndStyle, FALSE);
+
+			hWnd = CreateWindowW(GRS_WND_CLASS_NAME
+				, GRS_WND_TITLE
+				, dwWndStyle
+				, CW_USEDEFAULT
+				, 0
+				, rtWnd.right - rtWnd.left
+				, rtWnd.bottom - rtWnd.top
+				, nullptr
+				, nullptr
+				, hInstance
+				, nullptr);
+
+			if (!hWnd)
+			{
+				return FALSE;
+			}
+
+			ShowWindow(hWnd, nCmdShow);
+			UpdateWindow(hWnd);
+		}
 
 #if defined(_DEBUG)
 		{//打开显示子系统的调试支持
@@ -146,80 +156,92 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 #endif
 		//1、创建DXGI Factory对象
-		GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
-		// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-		GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+		{
+			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+
+		}
 
 		//2、枚举适配器，并选择合适的适配器来创建3D设备对象
-		for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
 		{
-			DXGI_ADAPTER_DESC1 desc = {};
-			pIAdapter->GetDesc1(&desc);
-
-			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-			{//跳过软件虚拟适配器设备
-				continue;
-			}
-			//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
-			//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
-			if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
+			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
 			{
-				break;
-			}
-		}
-		//3、创建D3D12.1的设备
-		GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3DDevice)));
+				DXGI_ADAPTER_DESC1 desc = {};
+				pIAdapter->GetDesc1(&desc);
 
+				if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+				{//跳过软件虚拟适配器设备
+					continue;
+				}
+				//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
+				//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
+				if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
+				{
+					break;
+				}
+			}
+			//3、创建D3D12.1的设备
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3DDevice)));
+
+		}
+
+		
 		//4、创建直接命令队列
-		D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
-		stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
-
-		//5、创建交换链
-		DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
-		stSwapChainDesc.BufferCount = nFrameBackBufCount;
-		stSwapChainDesc.Width = iWidth;
-		stSwapChainDesc.Height = iHeight;
-		stSwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		stSwapChainDesc.SampleDesc.Count = 1;
-
-		GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
-			pICommandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
-			hWnd,
-			&stSwapChainDesc,
-			nullptr,
-			nullptr,
-			&pISwapChain1
-		));
-
-		GRS_THROW_IF_FAILED(pISwapChain1.As(&pISwapChain3));
-		//6、得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
-		//注意此处使用了高版本的SwapChain接口的函数
-		nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-		//7、创建RTV(渲染目标视图)描述符堆(这里堆的含义应当理解为数组或者固定大小元素的固定大小显存池)
 		{
-			D3D12_DESCRIPTOR_HEAP_DESC stRTVHeapDesc = {};
-			stRTVHeapDesc.NumDescriptors = nFrameBackBufCount;
-			stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
-			//得到每个描述符元素的大小
-			nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
+			stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
 		}
-
-		//8、创建RTV的描述符
+	
+		//5、创建交换链
 		{
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
-			for (UINT i = 0; i < nFrameBackBufCount; i++)
+			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
+			stSwapChainDesc.BufferCount = nFrameBackBufCount;
+			stSwapChainDesc.Width = iWidth;
+			stSwapChainDesc.Height = iHeight;
+			stSwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+			stSwapChainDesc.SampleDesc.Count = 1;
+
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
+				pICommandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
+				hWnd,
+				&stSwapChainDesc,
+				nullptr,
+				nullptr,
+				&pISwapChain1
+			));
+
+			GRS_THROW_IF_FAILED(pISwapChain1.As(&pISwapChain3));
+			//6、得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
+			//注意此处使用了高版本的SwapChain接口的函数
+			nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
+			//7、创建RTV(渲染目标视图)描述符堆(这里堆的含义应当理解为数组或者固定大小元素的固定大小显存池)
 			{
-				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
-				pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
-				stRTVHandle.Offset(1, nRTVDescriptorSize);
+				D3D12_DESCRIPTOR_HEAP_DESC stRTVHeapDesc = {};
+				stRTVHeapDesc.NumDescriptors = nFrameBackBufCount;
+				stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+				stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+				GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
+				//得到每个描述符元素的大小
+				nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 			}
+
+			//8、创建RTV的描述符
+			{
+				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+				for (UINT i = 0; i < nFrameBackBufCount; i++)
+				{
+					GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
+					pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
+					stRTVHandle.Offset(1, nRTVDescriptorSize);
+				}
+			}
+
 		}
 
 		//9、创建一个空的根描述符，也就是默认的根描述符
@@ -234,11 +256,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		// 12、创建命令列表分配器
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&pICommandAllocator)));
+		{
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&pICommandAllocator)));
 
-		// 13、创建图形命令列表
-		GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, pICommandAllocator.Get(), pIPipelineState.Get(), IID_PPV_ARGS(&pICommandList)));
+			// 13、创建图形命令列表
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, pICommandAllocator.Get(), pIPipelineState.Get(), IID_PPV_ARGS(&pICommandList)));
 
+		}
 
 		// 10、编译Shader创建渲染管线状态对象
 		{
@@ -251,7 +275,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 #else
 			UINT compileFlags = 0;
 #endif
-			TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\1-D3D12Triangle\\Shader\\shaders.hlsl");
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\shaders.hlsl"), pszAppPath);
+			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &pIBlobVertexShader, nullptr));
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pIBlobPixelShader, nullptr));
 
@@ -339,7 +365,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			case WAIT_TIMEOUT:
 			{//计时器时间到
 				//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nFrameIndex);
 				//开始记录命令
@@ -413,6 +438,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						bExit = TRUE;
 					}
 				}
+			}
+			break;
+			case WAIT_TIMEOUT:
+			{
+
 			}
 			break;
 			default:
