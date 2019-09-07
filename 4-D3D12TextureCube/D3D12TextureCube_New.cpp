@@ -2,32 +2,27 @@
 #define WIN32_LEAN_AND_MEAN // 从 Windows 头中排除极少使用的资料
 #include <windows.h>
 #include <tchar.h>
-//添加WTL支持 方便使用COM
-#include <wrl.h>
-using namespace Microsoft;
-using namespace Microsoft::WRL;
-
+#include <strsafe.h>
+#include <wrl.h>//添加WTL支持 方便使用COM
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
-using namespace DirectX;
-//for d3d12
-#include <d3d12.h>
+#include <d3d12.h>//for d3d12
 #include <d3dcompiler.h>
+#if defined(_DEBUG)
+#include <dxgidebug.h>
+#endif
+#include <wincodec.h> //for WIC
+#include "..\WindowsCommons\d3dx12.h"
+
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
 
 //linker
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
-
-#if defined(_DEBUG)
-#include <dxgidebug.h>
-#endif
-
-//for WIC
-#include <wincodec.h>
-
-#include "..\WindowsCommons\d3dx12.h"
 
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 Texture Sample")
@@ -201,45 +196,46 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 {
 	::CoInitialize(nullptr);  //for WIC & COM
 
-	const UINT nFrameBackBufCount = 3u;
+	const UINT							nFrameBackBufCount = 3u;
 
-	int iWidth = 1024;
-	int iHeight = 768;
-	UINT nFrameIndex = 0;
-	UINT nFrame = 0;
+	int									iWidth = 1024;
+	int									iHeight = 768;
+	UINT								nFrameIndex = 0;
+	UINT								nFrame = 0;
 
-	UINT nDXGIFactoryFlags = 0U;
-	UINT nRTVDescriptorSize = 0U;
+	UINT								nDXGIFactoryFlags = 0U;
+	UINT								nRTVDescriptorSize = 0U;
 
-	HWND hWnd = nullptr;
-	MSG	msg = {};
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
+	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	float fBoxSize = 3.0f;
-	float fTCMax = 3.0f;
+	float								fBoxSize = 3.0f;
+	float								fTCMax = 3.0f;
 
-	ST_GRS_FRAME_MVP_BUFFER* pMVPBuffer = nullptr;
-	SIZE_T szMVPBuffer = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
+	ST_GRS_FRAME_MVP_BUFFER*			pMVPBuffer = nullptr;
+	SIZE_T								szMVPBuffer = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
 
-	D3D12_VERTEX_BUFFER_VIEW stVertexBufferView = {};
-	D3D12_INDEX_BUFFER_VIEW stIndexBufferView = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
+	D3D12_INDEX_BUFFER_VIEW				stIndexBufferView = {};
 
-	UINT64 n64FenceValue = 0ui64;
-	HANDLE hFenceEvent = nullptr;
+	UINT64								n64FenceValue = 0ui64;
+	HANDLE								hFenceEvent = nullptr;
 
-	UINT nTextureW = 0u;
-	UINT nTextureH = 0u;
-	UINT nBPP = 0u;
-	UINT nPicRowPitch = 0;
-	UINT64 n64UploadBufferSize = 0;
-	DXGI_FORMAT stTextureFormat = DXGI_FORMAT_UNKNOWN;
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayouts = {};
-	D3D12_RESOURCE_DESC stTextureDesc = {};
-	D3D12_RESOURCE_DESC stDestDesc = {};
+	UINT								nTextureW = 0u;
+	UINT								nTextureH = 0u;
+	UINT								nBPP = 0u;
+	UINT								nPicRowPitch = 0;
+	UINT64								n64UploadBufferSize = 0;
+	DXGI_FORMAT							stTextureFormat = DXGI_FORMAT_UNKNOWN;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayouts = {};
+	D3D12_RESOURCE_DESC					stTextureDesc = {};
+	D3D12_RESOURCE_DESC					stDestDesc = {};
 
-	UINT nSamplerDescriptorSize = 0; //采样器大小
+	UINT								nSamplerDescriptorSize = 0; //采样器大小
 
-	CD3DX12_VIEWPORT stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
-	CD3DX12_RECT	 stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
+	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
+	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
@@ -278,6 +274,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	try
 	{
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
+		{
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
+			if (MAX_PATH == nBytes)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+		}
+
 		//1、创建窗口
 		{
 			//---------------------------------------------------------------------------------------------
@@ -325,7 +330,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pIWICFactory)));
 
 			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
-			WCHAR* pszTexcuteFileName = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\3-D3D12TextureCube\\Texture\\timg.jpg");
+			WCHAR pszTexcuteFileName[MAX_PATH] = {};
+			StringCchPrintfW(pszTexcuteFileName, MAX_PATH, _T("%s\\Texture\\bear.jpg"), pszAppPath);
+
 			GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
 				pszTexcuteFileName,              // 文件名
 				NULL,                            // 不指定解码器，使用默认
@@ -591,7 +598,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//编译为行矩阵形式	   
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
-			TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\3-D3D12TextureCube\\Shader\\TextureCube.hlsl");
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureCube.hlsl"), pszAppPath);
+
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIBlobVertexShader, nullptr));
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
@@ -1094,13 +1103,130 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		while (!bExit)
 		{//注意这里我们调整了消息循环，将等待时间设置为0，同时将定时性的渲染，改成了每次循环都渲染
 		 //但这不表示说MsgWait函数就没啥用了，坚持使用它是因为后面例子如果想加入多线程控制就非常简单了
-			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, 0, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			case WAIT_TIMEOUT:
 			{//计时器时间到
+			//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nFrameIndex);
+			//开始记录命令
+			//---------------------------------------------------------------------------------------------
+			// 准备一个简单的旋转MVP矩阵 让方块转起来
+				{
+					n64tmCurrent = ::GetTickCount();
+					//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
+					//下面这句代码相当于经典游戏消息循环中的OnUpdate函数中需要做的事情
+					dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * fPalstance;
 
+					n64tmFrameStart = n64tmCurrent;
+
+					//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
+					if (dModelRotationYAngle > XM_2PI)
+					{
+						dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
+					}
+
+					//模型矩阵 model
+					XMMATRIX xmRot = XMMatrixRotationY(static_cast<float>(dModelRotationYAngle));
+
+					//计算 模型矩阵 model * 视矩阵 view
+					XMMATRIX xmMVP = XMMatrixMultiply(xmRot, XMMatrixLookAtLH(Eye, At, Up));
+
+					//投影矩阵 projection
+					xmMVP = XMMatrixMultiply(xmMVP, (XMMatrixPerspectiveFovLH(XM_PIDIV4, (FLOAT)iWidth / (FLOAT)iHeight, 0.1f, 1000.0f)));
+
+					XMStoreFloat4x4(&pMVPBuffer->m_MVP, xmMVP);
+				}
+				//---------------------------------------------------------------------------------------------
+
+				//---------------------------------------------------------------------------------------------
+				// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
+				pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+
+				//偏移描述符指针到指定帧缓冲视图位置
+				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nFrameIndex, nRTVDescriptorSize);
+				//设置渲染目标
+				pICommandList->OMSetRenderTargets(1, &stRTVHandle, FALSE, nullptr);
+
+				pICommandList->RSSetViewports(1, &stViewPort);
+				pICommandList->RSSetScissorRects(1, &stScissorRect);
+				// 继续记录命令，并真正开始新一帧的渲染
+				const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+				pICommandList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
+
+
+				//---------------------------------------------------------------------------------------------
+				pICommandList->SetGraphicsRootSignature(pIRootSignature.Get());
+				ID3D12DescriptorHeap* ppHeaps[] = { pISRVHeap.Get(),pISamplerDescriptorHeap.Get() };
+				pICommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+				//设置SRV
+				pICommandList->SetGraphicsRootDescriptorTable(0, pISRVHeap->GetGPUDescriptorHandleForHeapStart());
+
+				CD3DX12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandle(pISRVHeap->GetGPUDescriptorHandleForHeapStart()
+					, 1
+					, pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+				//设置CBV
+				pICommandList->SetGraphicsRootDescriptorTable(1, stGPUCBVHandle);
+
+
+				CD3DX12_GPU_DESCRIPTOR_HANDLE hGPUSampler(pISamplerDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
+					, nCurrentSamplerNO
+					, nSamplerDescriptorSize);
+				//设置Sample
+				pICommandList->SetGraphicsRootDescriptorTable(2, hGPUSampler);
+
+				//注意我们使用的渲染手法是三角形列表，也就是通常的Mesh网格
+				pICommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				pICommandList->IASetVertexBuffers(0, 1, &stVertexBufferView);
+				pICommandList->IASetIndexBuffer(&stIndexBufferView);
+
+				//---------------------------------------------------------------------------------------------
+				//Draw Call！！！
+				pICommandList->DrawIndexedInstanced(_countof(pBoxIndices), 1, 0, 0, 0);
+
+				//---------------------------------------------------------------------------------------------
+				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
+				pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+				//关闭命令列表，可以去执行了
+				GRS_THROW_IF_FAILED(pICommandList->Close());
+
+				//---------------------------------------------------------------------------------------------
+				//执行命令列表
+				ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
+				pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+				//---------------------------------------------------------------------------------------------
+				//提交画面
+				GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
+
+				//---------------------------------------------------------------------------------------------
+				//开始同步GPU与CPU的执行，先记录围栏标记值
+				const UINT64 fence = n64FenceValue;
+				GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
+				n64FenceValue++;
+
+				//---------------------------------------------------------------------------------------------
+				// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
+				if (pIFence->GetCompletedValue() < fence)
+				{
+					GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
+					WaitForSingleObject(hFenceEvent, INFINITE);
+				}
+				//执行到这里说明一个命令队列完整的执行完了，在这里就代表我们的一帧已经渲染完了，接着准备执行下一帧渲染
+
+				//---------------------------------------------------------------------------------------------
+				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
+				nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
+				//---------------------------------------------------------------------------------------------
+				//命令分配器先Reset一下
+				GRS_THROW_IF_FAILED(pICommandAllocator->Reset());
+				//Reset命令列表，并重新指定命令分配器和PSO对象
+				GRS_THROW_IF_FAILED(pICommandList->Reset(pICommandAllocator.Get(), pIPipelineState.Get()));
+
+				//GRS_TRACE(_T("第%u帧渲染结束.\n"), nFrame++);
 			}
 			break;
 			case 1:
@@ -1119,129 +1245,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 			}
 			break;
+			case WAIT_TIMEOUT:
+			{
+
+			}
+			break;
 			default:
 				break;
 			}
 
-			//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nFrameIndex);
-			//开始记录命令
-			//---------------------------------------------------------------------------------------------
-			// 准备一个简单的旋转MVP矩阵 让方块转起来
-			{
-				n64tmCurrent = ::GetTickCount();
-				//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
-				//下面这句代码相当于经典游戏消息循环中的OnUpdate函数中需要做的事情
-				dModelRotationYAngle += (( n64tmCurrent - n64tmFrameStart ) / 1000.0f) * fPalstance;
 
-				n64tmFrameStart = n64tmCurrent;
-
-				//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
-				if ( dModelRotationYAngle > XM_2PI )
-				{
-					dModelRotationYAngle = fmod( dModelRotationYAngle, XM_2PI );
-				}
-
-				//模型矩阵 model
-				XMMATRIX xmRot = XMMatrixRotationY(static_cast<float>(dModelRotationYAngle));
-
-				//计算 模型矩阵 model * 视矩阵 view
-				XMMATRIX xmMVP = XMMatrixMultiply(xmRot, XMMatrixLookAtLH(Eye, At, Up));
-
-				//投影矩阵 projection
-				xmMVP = XMMatrixMultiply(xmMVP, (XMMatrixPerspectiveFovLH(XM_PIDIV4, (FLOAT)iWidth / (FLOAT)iHeight, 0.1f, 1000.0f)));
-
-				XMStoreFloat4x4(&pMVPBuffer->m_MVP, xmMVP);
-			}
-			//---------------------------------------------------------------------------------------------
-
-	   		//---------------------------------------------------------------------------------------------
-			// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
-			pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-
-			//偏移描述符指针到指定帧缓冲视图位置
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nFrameIndex, nRTVDescriptorSize);
-			//设置渲染目标
-			pICommandList->OMSetRenderTargets(1, &stRTVHandle, FALSE, nullptr);
-
-			pICommandList->RSSetViewports(1, &stViewPort);
-			pICommandList->RSSetScissorRects(1, &stScissorRect);
-			// 继续记录命令，并真正开始新一帧的渲染
-			const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-			pICommandList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
-
-
-			//---------------------------------------------------------------------------------------------
-			pICommandList->SetGraphicsRootSignature(pIRootSignature.Get());
-			ID3D12DescriptorHeap* ppHeaps[] = { pISRVHeap.Get(),pISamplerDescriptorHeap.Get() };
-			pICommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-			//设置SRV
-			pICommandList->SetGraphicsRootDescriptorTable(0, pISRVHeap->GetGPUDescriptorHandleForHeapStart());
-
-			CD3DX12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandle(pISRVHeap->GetGPUDescriptorHandleForHeapStart()
-				, 1
-				, pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-			//设置CBV
-			pICommandList->SetGraphicsRootDescriptorTable(1, stGPUCBVHandle);
-
-
-			CD3DX12_GPU_DESCRIPTOR_HANDLE hGPUSampler(pISamplerDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
-				, nCurrentSamplerNO
-				, nSamplerDescriptorSize);
-			//设置Sample
-			pICommandList->SetGraphicsRootDescriptorTable(2, hGPUSampler);
-
-			//注意我们使用的渲染手法是三角形列表，也就是通常的Mesh网格
-			pICommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			pICommandList->IASetVertexBuffers(0, 1, &stVertexBufferView);
-			pICommandList->IASetIndexBuffer(&stIndexBufferView);
-
-			//---------------------------------------------------------------------------------------------
-			//Draw Call！！！
-			pICommandList->DrawIndexedInstanced(_countof(pBoxIndices), 1, 0, 0, 0);
-
-			//---------------------------------------------------------------------------------------------
-			//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-			pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-			//关闭命令列表，可以去执行了
-			GRS_THROW_IF_FAILED(pICommandList->Close());
-
-			//---------------------------------------------------------------------------------------------
-			//执行命令列表
-			ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
-			pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-			//---------------------------------------------------------------------------------------------
-			//提交画面
-			GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
-
-			//---------------------------------------------------------------------------------------------
-			//开始同步GPU与CPU的执行，先记录围栏标记值
-			const UINT64 fence = n64FenceValue;
-			GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
-			n64FenceValue++;
-
-			//---------------------------------------------------------------------------------------------
-			// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-			if (pIFence->GetCompletedValue() < fence)
-			{
-				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
-				WaitForSingleObject(hFenceEvent, INFINITE);
-			}
-			//执行到这里说明一个命令队列完整的执行完了，在这里就代表我们的一帧已经渲染完了，接着准备执行下一帧渲染
-
-			//---------------------------------------------------------------------------------------------
-			//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
-			nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-			//---------------------------------------------------------------------------------------------
-			//命令分配器先Reset一下
-			GRS_THROW_IF_FAILED(pICommandAllocator->Reset());
-			//Reset命令列表，并重新指定命令分配器和PSO对象
-			GRS_THROW_IF_FAILED(pICommandList->Reset(pICommandAllocator.Get(), pIPipelineState.Get()));
-
-			//GRS_TRACE(_T("第%u帧渲染结束.\n"), nFrame++);
 		}
 		//::CoUninitialize();
 	}

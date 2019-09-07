@@ -3,30 +3,29 @@
 #include <windows.h>
 #include <tchar.h>
 #include <fstream>  //for ifstream
-using namespace std;
 #include <wrl.h> //添加WTL支持 方便使用COM
-using namespace Microsoft;
-using namespace Microsoft::WRL;
 #include <atlcoll.h>  //for atl array
+#include <atlconv.h>  //for T2A
 #include <strsafe.h>  //for StringCchxxxxx function
-
 #include <dxgi1_6.h>
 #include <d3d12.h> //for d3d12
 #include <d3dcompiler.h>
+#if defined(_DEBUG)
+#include <dxgidebug.h>
+#endif
+#include <DirectXMath.h>
+#include "..\WindowsCommons\d3dx12.h"
+#include "..\WindowsCommons\DDSTextureLoader12.h"
+using namespace std;
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
-#if defined(_DEBUG)
-#include <dxgidebug.h>
-#endif
-
-#include <DirectXMath.h>
-#include "..\WindowsCommons\d3dx12.h"
-#include "..\WindowsCommons\DDSTextureLoader12.h"
-using namespace DirectX;
 
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 MultiThread Sample")
@@ -147,8 +146,8 @@ struct ST_GRS_THREAD_PARAMS
 	HANDLE								hEventRenderOver;
 	UINT								nCurrentFrameIndex;
 	XMFLOAT4							v4ModelPos;
-	const TCHAR*						pszDDSFile;
-	const CHAR*							pszMeshFile;
+	TCHAR								pszDDSFile[MAX_PATH];
+	CHAR								pszMeshFile[MAX_PATH];
 	ID3D12Device4*						pID3DDevice;
 	ID3D12CommandAllocator*				pICmdAlloc;
 	ID3D12GraphicsCommandList*			pICmdList;
@@ -160,47 +159,48 @@ UINT __stdcall RenderThread(void* pParam);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 BOOL LoadMeshVertex(const CHAR*pszMeshFileName, UINT&nVertexCnt, ST_GRS_VERTEX*&ppVertex, UINT*&ppIndices);
 
-int g_iWndWidth = 1024;
-int g_iWndHeight = 768;
+int									g_iWndWidth = 1024;
+int									g_iWndHeight = 768;
 
 CD3DX12_VIEWPORT					g_stViewPort(0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight));
 CD3DX12_RECT						g_stScissorRect(0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight));
 
 //初始的默认摄像机的位置
-XMFLOAT3 g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f);  //眼睛位置
-XMFLOAT3 g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
-XMFLOAT3 g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
+XMFLOAT3							g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f);  //眼睛位置
+XMFLOAT3							g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
+XMFLOAT3							g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
 
-float g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
-float g_fPitch = 0.0f;			// 绕XZ平面的旋转量
+float								g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
+float								g_fPitch = 0.0f;			// 绕XZ平面的旋转量
 
-double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
+double								g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 
-XMFLOAT4X4  g_mxWorld = {}; //World Matrix
-XMFLOAT4X4  g_mxVP = {};    //View Projection Matrix
+XMFLOAT4X4							g_mxWorld = {}; //World Matrix
+XMFLOAT4X4							g_mxVP = {};    //View Projection Matrix
 
 // 全局线程参数
-const UINT			 g_nMaxThread					= 3;
-const UINT			 g_nThdSphere					= 0;
-const UINT			 g_nThdCube						= 1;
-const UINT			 g_nThdPlane					= 2;
-ST_GRS_THREAD_PARAMS g_stThreadParams[g_nMaxThread] = {};
+const UINT							g_nMaxThread					= 3;
+const UINT							g_nThdSphere					= 0;
+const UINT							g_nThdCube						= 1;
+const UINT							g_nThdPlane						= 2;
+ST_GRS_THREAD_PARAMS				g_stThreadParams[g_nMaxThread] = {};
 
-const UINT g_nFrameBackBufCount = 3u;
-UINT g_nRTVDescriptorSize = 0U;
+const UINT							g_nFrameBackBufCount = 3u;
+UINT								g_nRTVDescriptorSize = 0U;
 ComPtr<ID3D12Resource>				g_pIARenderTargets[g_nFrameBackBufCount];
-
 ComPtr<ID3D12DescriptorHeap>		g_pIRTVHeap;
 ComPtr<ID3D12DescriptorHeap>		g_pIDSVHeap;				//深度缓冲描述符堆
+
+TCHAR								g_pszAppPath[MAX_PATH] = {};
 
 int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    lpCmdLine, int nCmdShow)
 {
 	::CoInitialize(nullptr);  //for WIC & COM
 
-	HWND hWnd = nullptr;
-	MSG	msg = {};
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
 
-	UINT nDXGIFactoryFlags = 0U;
+	UINT								nDXGIFactoryFlags = 0U;
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
@@ -236,6 +236,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	try
 	{
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
+		{
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, g_pszAppPath);
+			if (MAX_PATH == nBytes)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+		}
+
 		//1、创建窗口
 		{
 			//---------------------------------------------------------------------------------------------
@@ -497,8 +506,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//编译为行矩阵形式	   
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
-			TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Shader\\TextureCube.hlsl");
-
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureCube.hlsl"), g_pszAppPath);
+			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIVSSphere, nullptr));
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
@@ -539,19 +549,20 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		//11、准备参数并启动多个渲染线程
 		{
+			USES_CONVERSION;
 			// 球体个性参数
-			g_stThreadParams[g_nThdSphere].pszDDSFile = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\sphere.dds");
-			g_stThreadParams[g_nThdSphere].pszMeshFile = "D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\sphere.txt";
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\sphere.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			g_stThreadParams[g_nThdCube].pszDDSFile = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\Cube.dds");
-			g_stThreadParams[g_nThdCube].pszMeshFile = "D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\Cube.txt";
+			StringCchPrintf(g_stThreadParams[g_nThdCube].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Cube.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdCube].pszMeshFile, MAX_PATH, "%s\\Mesh\\Cube.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdCube].v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			g_stThreadParams[g_nThdPlane].pszDDSFile = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\Plane.dds");
-			g_stThreadParams[g_nThdPlane].pszMeshFile = "D:\\Projects_2018_08\\D3D12 Tutorials\\6-MultiThread\\Mesh\\Plane.txt";
+			StringCchPrintf(g_stThreadParams[g_nThdPlane].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Plane.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdPlane].pszMeshFile, MAX_PATH, "%s\\Mesh\\Plane.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdPlane].v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 		
@@ -669,12 +680,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			{
+			{//计时器时间到
 			}
 			break;
 			case WAIT_TIMEOUT:
-			{//计时器时间到
-
+			{
 			}
 			break;
 			case 1:

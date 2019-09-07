@@ -150,8 +150,6 @@
     <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp" />
     <None Include="MultiThread.cpp" />
     <ClCompile Include="MultiThreadWithMsgWait.cpp" />
-    <None Include="MultiThread_OLD2.cpp" />
-    <None Include="MultiThread_OLD.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\WindowsCommons\DDSTextureLoader12.h" />

@@ -790,7 +790,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//---------------------------------------------------------------------------------------------
 		// ×îÖÕ´´½¨SRVÃèÊö·û
 		{
-
 			D3D12_SHADER_RESOURCE_VIEW_DESC stSRVDesc = {};
 			stSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			stSRVDesc.Format = stTextureDesc.Format;

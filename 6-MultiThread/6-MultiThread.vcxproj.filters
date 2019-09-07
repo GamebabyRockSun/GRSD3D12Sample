@@ -31,17 +31,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="MultiThread_OLD.cpp">
-      <Filter>源文件</Filter>
-    </None>
     <None Include="Shader\shadow.hlsl">
       <Filter>Shader</Filter>
     </None>
     <None Include="Shader\depth.hlsl">
       <Filter>Shader</Filter>
-    </None>
-    <None Include="MultiThread_OLD2.cpp">
-      <Filter>源文件</Filter>
     </None>
     <None Include="MultiThread.cpp">
       <Filter>源文件</Filter>

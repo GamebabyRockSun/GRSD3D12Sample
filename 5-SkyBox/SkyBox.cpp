@@ -3,36 +3,30 @@
 #include <windows.h>
 #include <tchar.h>
 #include <fstream>  //for ifstream
-using namespace std;
-//添加WTL支持 方便使用COM
-#include <wrl.h>
-using namespace Microsoft;
-using namespace Microsoft::WRL;
-
+#include <strsafe.h>
+#include <atlconv.h> //for T2A
+#include <wrl.h> //添加WTL支持 方便使用COM
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
-
-//for d3d12
-#include <d3d12.h>
+#include <d3d12.h>//for d3d12
 #include <d3dcompiler.h>
+#if defined(_DEBUG)
+#include <dxgidebug.h>
+#endif
+#include <wincodec.h> //for WIC
+#include "..\WindowsCommons\d3dx12.h"
+#include "..\WindowsCommons\DDSTextureLoader12.h"
+
+using namespace std;
+using namespace Microsoft;
+using namespace Microsoft::WRL;
+using namespace DirectX;
 
 //linker
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
-
-#if defined(_DEBUG)
-#include <dxgidebug.h>
-#endif
-
-//for WIC
-#include <wincodec.h>
-
-#include "..\WindowsCommons\d3dx12.h"
-#include "..\WindowsCommons\DDSTextureLoader12.h"
-
-using namespace DirectX;
 
 #define GRS_WND_CLASS_NAME _T("Game Window Class")
 #define GRS_WND_TITLE	_T("DirectX12 Texture Sample")
@@ -214,73 +208,72 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 {
 	::CoInitialize(nullptr);  //for WIC & COM
 
-	const UINT nFrameBackBufCount = 3u;
+	const UINT							nFrameBackBufCount = 3u;
+	int									iWndWidth = 1024;
+	int									iWndHeight = 768;
+	UINT								nCurrentFrameIndex = 0;
+	UINT								nDXGIFactoryFlags = 0U;
+	UINT								nRTVDescriptorSize = 0U;
 
-	int iWndWidth = 1024;
-	int iWndHeight = 768;
-	UINT nCurrentFrameIndex = 0;
+	HWND								hWnd = nullptr;
+	MSG									msg = {};
+	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	UINT nDXGIFactoryFlags = 0U;
-	UINT nRTVDescriptorSize = 0U;
-
-	HWND hWnd = nullptr;
-	MSG	msg = {};
-
-	ST_GRS_FRAME_MVP_BUFFER* pMVPBufEarth = nullptr;
-	ST_GRS_FRAME_MVP_BUFFER* pMVPBufSkybox = nullptr;
+	ST_GRS_FRAME_MVP_BUFFER*			pMVPBufEarth = nullptr;
+	ST_GRS_FRAME_MVP_BUFFER*			pMVPBufSkybox = nullptr;
 	//常量缓冲区大小上对齐到256Bytes边界
-	SIZE_T szMVPBuf = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
+	SIZE_T								szMVPBuf = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
 
-	float fSphereSize = 3.0f;
+	float								fSphereSize = 3.0f;
 
-	D3D12_VERTEX_BUFFER_VIEW stVBVEarth = {};
-	D3D12_INDEX_BUFFER_VIEW stIBVEarth = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVBVEarth = {};
+	D3D12_INDEX_BUFFER_VIEW				stIBVEarth = {};
 
-	D3D12_VERTEX_BUFFER_VIEW stVBVSkybox = {};
-	D3D12_INDEX_BUFFER_VIEW stIBVSkybox = {};
+	D3D12_VERTEX_BUFFER_VIEW			stVBVSkybox = {};
+	D3D12_INDEX_BUFFER_VIEW				stIBVSkybox = {};
 
-	UINT64 n64FenceValue = 0ui64;
-	HANDLE hFenceEvent = nullptr;
+	UINT64								n64FenceValue = 0ui64;
+	HANDLE								hFenceEvent = nullptr;
 
-	UINT nTxtWEarth = 0u;
-	UINT nTxtHEarth = 0u;
-	UINT nTxtWSkybox = 0u;
-	UINT nTxtHSkybox = 0u;
-	UINT nBPPEarth = 0u;
-	UINT nBPPSkybox = 0u;
-	UINT nRowPitchEarth = 0;
-	UINT nRowPitchSkybox = 0;
-	UINT64 n64szUploadBufEarth = 0;
-	UINT64 n64szUploadBufSkybox = 0;
+	UINT								nTxtWEarth = 0u;
+	UINT								nTxtHEarth = 0u;
+	UINT								nTxtWSkybox = 0u;
+	UINT								nTxtHSkybox = 0u;
+	UINT								nBPPEarth = 0u;
+	UINT								nBPPSkybox = 0u;
+	UINT								nRowPitchEarth = 0;
+	UINT								nRowPitchSkybox = 0;
+	UINT64								n64szUploadBufEarth = 0;
+	UINT64								n64szUploadBufSkybox = 0;
 
-	DXGI_FORMAT emTxtFmtEarth = DXGI_FORMAT_UNKNOWN;
+	DXGI_FORMAT							emTxtFmtEarth = DXGI_FORMAT_UNKNOWN;
 
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayoutsEarth = {};
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTxtLayoutsSkybox = {};
-	D3D12_RESOURCE_DESC stTextureDesc = {};
-	D3D12_RESOURCE_DESC stDestDesc = {};
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayoutsEarth = {};
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayoutsSkybox = {};
+	D3D12_RESOURCE_DESC					stTextureDesc = {};
+	D3D12_RESOURCE_DESC					stDestDesc = {};
 
-	UINT nSamplerDescriptorSize = 0; //采样器大小
+	UINT								nSamplerDescriptorSize = 0; //采样器大小
 
-	CD3DX12_VIEWPORT stViewPort(0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight));
-	CD3DX12_RECT	 stScissorRect(0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight));
+	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight));
+	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight));
 
 	//球体的网格数据
-	ST_GRS_VERTEX* pstSphereVertices = nullptr;
-	UINT nSphereVertexCnt = 0;
-	UINT* pSphereIndices = nullptr;
-	UINT nSphereIndexCnt = 0;
+	ST_GRS_VERTEX*						pstSphereVertices = nullptr;
+	UINT								nSphereVertexCnt = 0;
+	UINT*								pSphereIndices = nullptr;
+	UINT								nSphereIndexCnt = 0;
 
 	//Sky Box的网格数据
-	UINT nSkyboxIndexCnt = 4;
-	ST_GRS_SKYBOX_VERTEX stSkyboxVertices[4] = {};
+	UINT								nSkyboxIndexCnt = 4;
+	ST_GRS_SKYBOX_VERTEX				stSkyboxVertices[4] = {};
 
 	//======================================================================================================
 	//加载Skybox的Cube Map需要的变量
-	std::unique_ptr<uint8_t[]> ddsData;
+	std::unique_ptr<uint8_t[]>			ddsData;
 	std::vector<D3D12_SUBRESOURCE_DATA> subresources;
-	DDS_ALPHA_MODE emAlphaMode = DDS_ALPHA_MODE_UNKNOWN;
-	bool bIsCube = false;
+	DDS_ALPHA_MODE						emAlphaMode = DDS_ALPHA_MODE_UNKNOWN;
+	bool								bIsCube = false;
 	//======================================================================================================
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
@@ -343,6 +336,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	try
 	{
+		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
+		{
+			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
+			if (MAX_PATH == nBytes)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+		}
+
 		//1、创建窗口
 		{
 			//---------------------------------------------------------------------------------------------
@@ -397,7 +399,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pIWICFactory)));
 
 			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
-			WCHAR* pszTexcuteFileName = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Texture\\金星.jpg");
+			WCHAR pszTexcuteFileName[MAX_PATH] = {};
+			StringCchPrintfW(pszTexcuteFileName, MAX_PATH, _T("%s\\Texture\\金星.jpg"), pszAppPath);
+
 			GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
 				pszTexcuteFileName,              // 文件名
 				NULL,                            // 不指定解码器，使用默认
@@ -705,7 +709,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//编译为行矩阵形式	   
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
-			TCHAR pszShaderFileName[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Shader\\TextureCube.hlsl");
+			TCHAR pszShaderFileName[MAX_PATH] = {};
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureCube.hlsl"), pszAppPath);
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIVSEarth, nullptr));
@@ -747,7 +752,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//编译为行矩阵形式	   
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
-			TCHAR pszSMFileSkybox[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Shader\\SkyBox.hlsl");
+			TCHAR pszSMFileSkybox[MAX_PATH] = {};
+			StringCchPrintf(pszSMFileSkybox, MAX_PATH, _T("%s\\Shader\\SkyBox.hlsl"), pszAppPath);
+			
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszSMFileSkybox, nullptr, nullptr
 				, "SkyboxVS", "vs_5_0", compileFlags, 0, &pIVSSkybox, nullptr));
@@ -774,7 +781,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		//12、使用DDSLoader辅助函数加载Skybox的纹理
 		{
-			TCHAR pszSkyboxTextureFile[] = _T("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Texture\\sky_cube.dds");
+			TCHAR pszSkyboxTextureFile[MAX_PATH] = {};
+			StringCchPrintf(pszSkyboxTextureFile, MAX_PATH, _T("%s\\Texture\\sky_cube.dds"), pszAppPath);
 
 			//HRESULT DirectX::LoadDDSTextureFromFile(
 			//	ID3D12Device* d3dDevice,
@@ -1080,9 +1088,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			ifstream fin;
 			char input;
-
-			fin.open("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Mesh\\sphere.txt");
-			//fin.open("D:\\Projects_2018_08\\D3D12 Tutorials\\5-SkyBox\\Mesh\\arrow.vtn");
+			USES_CONVERSION;
+			char pModuleFileName[MAX_PATH] = {};
+			StringCchPrintfA(pModuleFileName, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(pszAppPath));
+			fin.open(pModuleFileName);
+			
 			if (fin.fail())
 			{
 				throw CGRSCOMException(E_FAIL);
@@ -1420,13 +1430,123 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		while (!bExit)
 		{//注意这里我们调整了消息循环，将等待时间设置为0，同时将定时性的渲染，改成了每次循环都渲染
 		 //但这不表示说MsgWait函数就没啥用了，坚持使用它是因为后面例子如果想加入多线程控制就非常简单了
-			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, 0, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			case WAIT_TIMEOUT:
 			{//计时器时间到
+			//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nCurrentFrameIndex);
+			//开始记录命令
+			//---------------------------------------------------------------------------------------------
+			// 准备一个简单的旋转MVP矩阵 让方块转起来
+				{
+					n64tmCurrent = ::GetTickCount();
+					//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
+					//下面这句代码相当于经典游戏消息循环中的OnUpdate函数中需要做的事情
+					dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * fPalstance;
 
+					n64tmFrameStart = n64tmCurrent;
+
+					//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
+					if (dModelRotationYAngle > XM_2PI)
+					{
+						dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
+					}
+
+					//计算 视矩阵 view * 裁剪矩阵 projection
+					XMMATRIX xmMVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&f3EyePos)
+						, XMLoadFloat3(&f3LockAt)
+						, XMLoadFloat3(&f3HeapUp))
+						, XMMatrixPerspectiveFovLH(XM_PIDIV4
+							, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 0.1f, 1000.0f));
+
+					//设置Skybox的MVP
+					XMStoreFloat4x4(&pMVPBufSkybox->m_MVP, xmMVP);
+
+					//模型矩阵 model 这里是放大后旋转
+					XMMATRIX xmRot = XMMatrixMultiply(XMMatrixScaling(fSphereSize, fSphereSize, fSphereSize)
+						, XMMatrixRotationY(static_cast<float>(dModelRotationYAngle)));
+
+					//计算球体的MVP
+					xmMVP = XMMatrixMultiply(xmRot, xmMVP);
+
+					XMStoreFloat4x4(&pMVPBufEarth->m_MVP, xmMVP);
+				}
+				//---------------------------------------------------------------------------------------------
+				// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
+				pICmdListDirect->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nCurrentFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+				//偏移描述符指针到指定帧缓冲视图位置
+				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nCurrentFrameIndex, nRTVDescriptorSize);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
+				//设置渲染目标
+				pICmdListDirect->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+				//---------------------------------------------------------------------------------------------
+				pICmdListDirect->RSSetViewports(1, &stViewPort);
+				pICmdListDirect->RSSetScissorRects(1, &stScissorRect);
+
+				//---------------------------------------------------------------------------------------------
+				// 继续记录命令，并真正开始新一帧的渲染
+				const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+				pICmdListDirect->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
+				pICmdListDirect->ClearDepthStencilView(pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
+					, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+				//===============================================================================================
+				//31、执行Skybox的捆绑包
+				ID3D12DescriptorHeap* ppHeapsSkybox[] = { pISRVHpSkybox.Get(),pISampleHpSkybox.Get() };
+				pICmdListDirect->SetDescriptorHeaps(_countof(ppHeapsSkybox), ppHeapsSkybox);
+				pICmdListDirect->ExecuteBundle(pIBundlesSkybox.Get());
+				//===============================================================================================
+
+				//===============================================================================================
+				//32、执行球体的捆绑包
+				ID3D12DescriptorHeap* ppHeapsEarth[] = { pISRVHpEarth.Get(),pISampleHpEarth.Get() };
+				pICmdListDirect->SetDescriptorHeaps(_countof(ppHeapsEarth), ppHeapsEarth);
+				pICmdListDirect->ExecuteBundle(pIBundlesEarth.Get());
+				//===============================================================================================
+
+				//---------------------------------------------------------------------------------------------
+				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
+				pICmdListDirect->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nCurrentFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+				//关闭命令列表，可以去执行了
+				GRS_THROW_IF_FAILED(pICmdListDirect->Close());
+
+				//---------------------------------------------------------------------------------------------
+				//执行命令列表
+				ID3D12CommandList* ppCommandLists[] = { pICmdListDirect.Get() };
+				pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+				//---------------------------------------------------------------------------------------------
+				//提交画面
+				GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
+
+				//---------------------------------------------------------------------------------------------
+				//开始同步GPU与CPU的执行，先记录围栏标记值
+				const UINT64 fence = n64FenceValue;
+				GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
+				n64FenceValue++;
+
+				//---------------------------------------------------------------------------------------------
+				// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
+				if (pIFence->GetCompletedValue() < fence)
+				{
+					GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
+					WaitForSingleObject(hFenceEvent, INFINITE);
+				}
+				//执行到这里说明一个命令队列完整的执行完了，在这里就代表我们的一帧已经渲染完了，接着准备执行下一帧渲染
+
+				//---------------------------------------------------------------------------------------------
+				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
+				nCurrentFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
+				//---------------------------------------------------------------------------------------------
+				//命令分配器先Reset一下
+				GRS_THROW_IF_FAILED(pICmdAllocDirect->Reset());
+				//Reset命令列表，并重新指定命令分配器和PSO对象
+				GRS_THROW_IF_FAILED(pICmdListDirect->Reset(pICmdAllocDirect.Get(), pIPSOEarth.Get()));
+
+				//GRS_TRACE(_T("第%u帧渲染结束.\n"), nFrame++);
 			}
 			break;
 			case 1:
@@ -1445,122 +1565,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 			}
 			break;
+			case WAIT_TIMEOUT:
+			{
+			}
+			break;
 			default:
 				break;
 			}
 
-			//GRS_TRACE(_T("开始第%u帧渲染{Frame Index = %u}：\n"),nFrame,nCurrentFrameIndex);
-			//开始记录命令
-			//---------------------------------------------------------------------------------------------
-			// 准备一个简单的旋转MVP矩阵 让方块转起来
-			{
-				n64tmCurrent = ::GetTickCount();
-				//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
-				//下面这句代码相当于经典游戏消息循环中的OnUpdate函数中需要做的事情
-				dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * fPalstance;
 
-				n64tmFrameStart = n64tmCurrent;
-
-				//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
-				if (dModelRotationYAngle > XM_2PI)
-				{
-					dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
-				}
-
-				//计算 视矩阵 view * 裁剪矩阵 projection
-				XMMATRIX xmMVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&f3EyePos)
-						, XMLoadFloat3(&f3LockAt)
-						, XMLoadFloat3(&f3HeapUp))
-					, XMMatrixPerspectiveFovLH(XM_PIDIV4
-						, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 0.1f, 1000.0f));
-
-				//设置Skybox的MVP
-				XMStoreFloat4x4(&pMVPBufSkybox->m_MVP, xmMVP);
-
-				//模型矩阵 model 这里是放大后旋转
-				XMMATRIX xmRot = XMMatrixMultiply(XMMatrixScaling(fSphereSize, fSphereSize, fSphereSize)
-					, XMMatrixRotationY(static_cast<float>(dModelRotationYAngle)));
-
-				//计算球体的MVP
-				xmMVP = XMMatrixMultiply(xmRot, xmMVP);
-
-				XMStoreFloat4x4(&pMVPBufEarth->m_MVP, xmMVP);
-			}
-			//---------------------------------------------------------------------------------------------
-			// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
-			pICmdListDirect->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nCurrentFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-			//偏移描述符指针到指定帧缓冲视图位置
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nCurrentFrameIndex, nRTVDescriptorSize);
-			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
-			//设置渲染目标
-			pICmdListDirect->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
-			//---------------------------------------------------------------------------------------------
-			pICmdListDirect->RSSetViewports(1, &stViewPort);
-			pICmdListDirect->RSSetScissorRects(1, &stScissorRect);
-
-			//---------------------------------------------------------------------------------------------
-			// 继续记录命令，并真正开始新一帧的渲染
-			const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-			pICmdListDirect->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
-			pICmdListDirect->ClearDepthStencilView(pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
-				, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-			//===============================================================================================
-			//31、执行Skybox的捆绑包
-			ID3D12DescriptorHeap* ppHeapsSkybox[] = { pISRVHpSkybox.Get(),pISampleHpSkybox.Get() };
-			pICmdListDirect->SetDescriptorHeaps(_countof(ppHeapsSkybox), ppHeapsSkybox);
-			pICmdListDirect->ExecuteBundle(pIBundlesSkybox.Get());
-			//===============================================================================================
-
-			//===============================================================================================
-			//32、执行球体的捆绑包
-			ID3D12DescriptorHeap* ppHeapsEarth[] = { pISRVHpEarth.Get(),pISampleHpEarth.Get() };
-			pICmdListDirect->SetDescriptorHeaps(_countof(ppHeapsEarth), ppHeapsEarth);
-			pICmdListDirect->ExecuteBundle(pIBundlesEarth.Get());
-			//===============================================================================================
-
-			//---------------------------------------------------------------------------------------------
-			//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-			pICmdListDirect->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nCurrentFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
-			//关闭命令列表，可以去执行了
-			GRS_THROW_IF_FAILED(pICmdListDirect->Close());
-
-			//---------------------------------------------------------------------------------------------
-			//执行命令列表
-			ID3D12CommandList* ppCommandLists[] = { pICmdListDirect.Get() };
-			pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-			//---------------------------------------------------------------------------------------------
-			//提交画面
-			GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
-
-			//---------------------------------------------------------------------------------------------
-			//开始同步GPU与CPU的执行，先记录围栏标记值
-			const UINT64 fence = n64FenceValue;
-			GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
-			n64FenceValue++;
-
-			//---------------------------------------------------------------------------------------------
-			// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-			if (pIFence->GetCompletedValue() < fence)
-			{
-				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
-				WaitForSingleObject(hFenceEvent, INFINITE);
-			}
-			//执行到这里说明一个命令队列完整的执行完了，在这里就代表我们的一帧已经渲染完了，接着准备执行下一帧渲染
-
-			//---------------------------------------------------------------------------------------------
-			//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
-			nCurrentFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-			//---------------------------------------------------------------------------------------------
-			//命令分配器先Reset一下
-			GRS_THROW_IF_FAILED(pICmdAllocDirect->Reset());
-			//Reset命令列表，并重新指定命令分配器和PSO对象
-			GRS_THROW_IF_FAILED(pICmdListDirect->Reset(pICmdAllocDirect.Get(), pIPSOEarth.Get()));
-
-			//GRS_TRACE(_T("第%u帧渲染结束.\n"), nFrame++);
 		}
 		//::CoUninitialize();
 
