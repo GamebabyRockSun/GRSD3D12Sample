@@ -104,70 +104,8 @@ inline void GRS_SetDXGIDebugNameIndexed(ID3D12Object*, LPCWSTR, UINT)
 
 #define GRS_SET_DXGI_DEBUGNAME_COMPTR(x)				GRS_SetDXGIDebugName(x.Get(), L#x)
 #define GRS_SET_DXGI_DEBUGNAME_INDEXED_COMPTR(x, n)		GRS_SetDXGIDebugNameIndexed(x[n].Get(), L#x, n)
-
-
-#ifndef GRS_DBGOUT_BUF_LEN
-#define GRS_DBGOUT_BUF_LEN 2048
-#endif
-//断言定义
-#ifdef _DEBUG
-#define GRS_ASSERT(s) if(!(s)) { ::DebugBreak(); }
-#else
-#define GRS_ASSERT(s) 
-#endif
-
-__inline void __cdecl GRSDebugOutputA(LPCSTR pszFormat, ...)
-{//UNICODE版的待时间的Trace
-	va_list va;
-	va_start(va, pszFormat);
-
-	CHAR pBuffer[GRS_DBGOUT_BUF_LEN] = {};
-
-	if (S_OK != ::StringCchVPrintfA(pBuffer, sizeof(pBuffer) / sizeof(pBuffer[0]), pszFormat, va))
-	{
-		va_end(va);
-		return;
-	}
-	va_end(va);
-	OutputDebugStringA(pBuffer);
-}
-
-__inline void __cdecl GRSDebugOutputW(LPCWSTR pszFormat, ...)
-{//UNICODE版的待时间的Trace
-	va_list va;
-	va_start(va, pszFormat);
-
-	WCHAR pBuffer[GRS_DBGOUT_BUF_LEN] = {};
-
-	if (S_OK != ::StringCchVPrintfW(pBuffer, sizeof(pBuffer) / sizeof(pBuffer[0]), pszFormat, va))
-	{
-		va_end(va);
-		return;
-	}
-	va_end(va);
-	OutputDebugStringW(pBuffer);
-}
-
-#ifdef UNICODE
-#define GRSDebugOutput GRSDebugOutputW
-#else 
-#define GRSDebugOutput GRSDebugOutputA
-#endif
-
-
-//普通的调试输出支持
-#if defined(DEBUG) | defined(_DEBUG)
-#define GRS_TRACE(...)		GRSDebugOutput(__VA_ARGS__)
-#define GRS_TRACEA(...)		GRSDebugOutputA(__VA_ARGS__)
-#define GRS_TRACEW(...)		GRSDebugOutputW(__VA_ARGS__)
-#define GRS_TRACE_LINE()	GRSDebugOutputA("%s(%d):",__FILE__, __LINE__)
-#else
-#define GRS_TRACE(...)
-#define GRS_TRACEA(...)
-#define GRS_TRACEW(...)
-#define GRS_TRACE_LINE()
-#endif
 //------------------------------------------------------------------------------------------------------------
+
 
 class CGRSCOMException
 {
@@ -722,9 +660,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//主线程进入等待
 			dwWaitCnt = static_cast<DWORD>(arHWaited.GetCount());
 			dwRet = ::MsgWaitForMultipleObjects( dwWaitCnt ,arHWaited.GetData(), TRUE,INFINITE, QS_ALLINPUT);
-			GRS_TRACE(_T("dwWaitCnt = %d(%x)\tdwRet = %d(%x)"), dwWaitCnt, dwWaitCnt, dwRet, dwRet);
-			dwRet = ( dwRet >= WAIT_ABANDONED_0 && dwRet < WAIT_ABANDONED_0 + dwWaitCnt ) ? dwRet - WAIT_ABANDONED_0 : dwRet - WAIT_OBJECT_0;
-			GRS_TRACE(_T("\tCalced dwRet = %d(%x)\n"), dwRet, dwRet);
+			dwRet -= WAIT_OBJECT_0;
+
 			if( 0 == dwRet )
 			{
 				switch (nStates)
@@ -878,7 +815,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 
 				//处理消息
-				for (INT i = 10; i > 0 && ::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE | PM_NOYIELD); --i)
+				while( ::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE | PM_NOYIELD) )
 				{
 					if (WM_QUIT != msg.message)
 					{
