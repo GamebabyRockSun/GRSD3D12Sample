@@ -713,6 +713,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		GRS_THROW_IF_FAILED(pICmdListPre->Close());
 		GRS_THROW_IF_FAILED(pICmdListPost->Close());
 
+		SetTimer(hWnd, WM_USER + 100, 1, nullptr); //这句为了保证MsgWaitForMultipleObjects 在 wait for all 为True时 能够及时返回
+
 		//13、开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{//注意这里我们调整了消息循环，将等待时间设置为0，同时将定时性的渲染，改成了每次循环都渲染
@@ -876,7 +878,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 
 				//处理消息
-				for ( INT i = 10; i > 0 && ::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE); --i )
+				for (INT i = 10; i > 0 && ::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE | PM_NOYIELD); --i)
 				{
 					if (WM_QUIT != msg.message)
 					{
@@ -892,6 +894,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			else
 			{
 
+
 			}
 		
 			//---------------------------------------------------------------------------------------------
@@ -903,6 +906,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				bExit = TRUE;
 			}
 		}
+
+		KillTimer(hWnd, WM_USER + 100);
+
 	}
 	catch (CGRSCOMException& e)
 	{//发生了COM异常
@@ -1148,7 +1154,7 @@ UINT __stdcall RenderThread(void* pParam)
 		while (!bQuit)
 		{
 			// 等待主线程通知开始渲染，同时仅接收主线程Post过来的消息，目前就是为了等待WM_QUIT消息
-			dwRet = ::MsgWaitForMultipleObjects(1, &pThdPms->hRunEvent, FALSE, 100, QS_ALLPOSTMESSAGE);
+			dwRet = ::MsgWaitForMultipleObjects(1, &pThdPms->hRunEvent, FALSE, INFINITE, QS_ALLPOSTMESSAGE);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
