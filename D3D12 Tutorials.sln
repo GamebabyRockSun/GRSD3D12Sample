@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "7-D3D12MultiAdapter", "7-D3
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "4-D3D12TextureCube", "4-D3D12TextureCube\3-D3D12TextureCube.vcxproj", "{E28BD638-0BAD-48AE-8258-EA98FDEB01BF}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "8-UIRenderBase", "8-UIRenderBase\8-UIRenderBase.vcxproj", "{FA277433-C829-41E4-93DB-7AAAA0A53643}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -111,6 +113,18 @@ Global
 		{E28BD638-0BAD-48AE-8258-EA98FDEB01BF}.Release|x64.Build.0 = Release|x64
 		{E28BD638-0BAD-48AE-8258-EA98FDEB01BF}.Release|x86.ActiveCfg = Release|Win32
 		{E28BD638-0BAD-48AE-8258-EA98FDEB01BF}.Release|x86.Build.0 = Release|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Debug|x64.ActiveCfg = Debug|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Debug|x64.Build.0 = Debug|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Debug|x86.ActiveCfg = Debug|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Debug|x86.Build.0 = Debug|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Profile|x64.ActiveCfg = Release|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Profile|x64.Build.0 = Release|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Profile|x86.ActiveCfg = Release|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Profile|x86.Build.0 = Release|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Release|x64.ActiveCfg = Release|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Release|x64.Build.0 = Release|x64
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Release|x86.ActiveCfg = Release|Win32
+		{FA277433-C829-41E4-93DB-7AAAA0A53643}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
