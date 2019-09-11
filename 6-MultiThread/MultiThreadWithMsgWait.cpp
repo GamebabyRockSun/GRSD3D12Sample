@@ -229,7 +229,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12CommandAllocator>		pICmdAllocPost;
 	ComPtr<ID3D12GraphicsCommandList>	pICmdListPost;
 
-
 	CAtlArray<HANDLE>					arHWaited;
 	CAtlArray<HANDLE>					arHSubThread;
 
@@ -633,7 +632,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		UINT nStates = 0; //初识状态为0
+		UINT nStates = 0; //初始状态为0
 		DWORD dwRet = 0;
 		DWORD dwWaitCnt = 0;
 		CAtlArray<ID3D12CommandList*> arCmdList;
