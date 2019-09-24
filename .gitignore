@@ -37,3 +37,6 @@ Debug
 # VS File
 .vs
 
+#Release File
+Release
+
