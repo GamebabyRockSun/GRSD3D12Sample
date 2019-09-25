@@ -151,7 +151,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="D3D12WICTexture.cpp" />
+    <ClCompile Include="2-D3D12WICTexture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Texture.hlsl">

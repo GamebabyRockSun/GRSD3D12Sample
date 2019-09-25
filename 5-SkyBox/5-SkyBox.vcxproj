@@ -152,7 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp" />
-    <ClCompile Include="SkyBox.cpp" />
+    <ClCompile Include="5-SkyBox.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\SkyBox.hlsl">

@@ -21,7 +21,7 @@
     <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="MultiThreadWithMsgWait.cpp">
+    <ClCompile Include="6-MultiThreadWithMsgWait.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -37,11 +37,11 @@
     <None Include="Shader\depth.hlsl">
       <Filter>Shader</Filter>
     </None>
-    <None Include="MultiThread.cpp">
-      <Filter>源文件</Filter>
-    </None>
     <None Include="Shader\TextureCube.hlsl">
       <Filter>Shader</Filter>
+    </None>
+    <None Include="6-MultiThread.cpp">
+      <Filter>源文件</Filter>
     </None>
   </ItemGroup>
 </Project>

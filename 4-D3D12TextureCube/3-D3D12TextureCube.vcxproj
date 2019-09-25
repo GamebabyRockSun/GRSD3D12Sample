@@ -152,7 +152,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="D3D12TextureCube_New.cpp" />
+    <ClCompile Include="4-D3D12TextureCube.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\TextureCube.hlsl">

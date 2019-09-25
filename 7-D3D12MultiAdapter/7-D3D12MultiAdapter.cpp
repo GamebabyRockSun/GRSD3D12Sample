@@ -91,10 +91,10 @@ inline void GRS_SetDXGIDebugNameIndexed(IDXGIObject* pObject, LPCWSTR name, UINT
 }
 #else
 
-inline void GRS_SetDXGIDebugName(ID3D12Object*, LPCWSTR)
+inline void GRS_SetDXGIDebugName(IDXGIObject*, LPCWSTR)
 {
 }
-inline void GRS_SetDXGIDebugNameIndexed(ID3D12Object*, LPCWSTR, UINT)
+inline void GRS_SetDXGIDebugNameIndexed(IDXGIObject*, LPCWSTR, UINT)
 {
 }
 
@@ -244,7 +244,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		ComPtr<ID3D12Resource>				pISecondaryAdapterTexutrePerFrame[g_nFrameBackBufCount];
 		BOOL								bCrossAdapterTextureSupport = FALSE;
 		CD3DX12_RESOURCE_DESC				stRenderTargetDesc = {};
-		const float							arf4ClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		const float							arf4ClearColor[4] = { 0.2f, 0.5f, 1.0f, 1.0f };
 
 		ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 		ComPtr<IDXGISwapChain1>				pISwapChain1;
@@ -268,6 +268,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		ComPtr<ID3D12DescriptorHeap>		pIDHSampleSecondary;
 
 		HANDLE								hFenceEvent = nullptr;
+		UINT64								n64CurrentFenceValue = 0;
+		UINT64								n64FenceValue = 1ui64;
 
 
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
@@ -279,7 +281,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		//1、创建窗口
+		// 创建窗口
 		{
 			//---------------------------------------------------------------------------------------------
 			WNDCLASSEX wcex = {};
@@ -315,7 +317,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			UpdateWindow(hWnd);
 		}
 
-		//2、打开显示子系统的调试支持
+		// 打开显示子系统的调试支持
 		{
 #if defined(_DEBUG)
 			ComPtr<ID3D12Debug> debugController;
@@ -328,7 +330,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 #endif
 		}
 
-		//3、创建DXGI Factory对象
+		// 创建DXGI Factory对象
 		{
 			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory5);
@@ -336,7 +338,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
-		//4、枚举适配器创建设备
+		// 枚举适配器创建设备
 		{//判定主次显卡的方法，与DirectX12 示例中的方法不同，我们使用的稍微准确一些
 		 //，它里面用的就是序号0默认是集显1是独显然后按主次创建
 
@@ -421,7 +423,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPUParams[nIDGPUSecondary].m_pID3DDevice);
 		}
 
-		//5、创建命令队列
+		// 创建命令队列
 		{
 			D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
 			stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -443,7 +445,43 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdQueueCopy);
 		}
 
-		//6、创建交换链
+		// 创建围栏对象，以及多GPU同步围栏对象
+		{
+			for (int iGPUIndex = 0; iGPUIndex < nMaxGPUParams; iGPUIndex++)
+			{
+				GRS_THROW_IF_FAILED(stGPUParams[iGPUIndex].m_pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&stGPUParams[iGPUIndex].m_pIFence)));
+			}
+
+			// 在主显卡上创建一个可共享的围栏对象
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateFence(0
+				, D3D12_FENCE_FLAG_SHARED | D3D12_FENCE_FLAG_SHARED_CROSS_ADAPTER
+				, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pISharedFence)));
+
+			// 共享这个围栏，通过句柄方式
+			HANDLE hFenceShared = nullptr;
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateSharedHandle(
+				stGPUParams[nIDGPUMain].m_pISharedFence.Get(),
+				nullptr,
+				GENERIC_ALL,
+				nullptr,
+				&hFenceShared));
+
+			// 在辅助显卡上打开这个围栏对象完成共享
+			HRESULT hrOpenSharedHandleResult = stGPUParams[nIDGPUSecondary].m_pID3DDevice->OpenSharedHandle(hFenceShared
+				, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pISharedFence));
+
+			// 先关闭句柄，再判定是否共享成功
+			::CloseHandle(hFenceShared);
+			GRS_THROW_IF_FAILED(hrOpenSharedHandleResult);
+
+			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (hFenceEvent == nullptr)
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+		}
+
+		// 创建交换链
 		{
 			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
 			stSwapChainDesc.BufferCount = g_nFrameBackBufCount;
@@ -493,6 +531,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
 				D3D12_TEXTURE_LAYOUT_UNKNOWN, 0u);
 
+			WCHAR pszDebugName[MAX_PATH] = {};
+
 			for ( UINT iGPUIndex = 0; iGPUIndex < nMaxGPUParams; iGPUIndex++ )
 			{
 				CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(stGPUParams[iGPUIndex].m_pIDHRTV->GetCPUDescriptorHandleForHeapStart());
@@ -534,6 +574,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, nullptr
 					, IID_PPV_ARGS(&stGPUParams[iGPUIndex].m_pICmdList)));
 
+				
+				if (SUCCEEDED(StringCchPrintfW(pszDebugName,MAX_PATH, L"stGPUParams[%u].m_pICmdList%s[%u]", iGPUIndex)))
+				{
+					stGPUParams[iGPUIndex].m_pICmdList->SetName(pszDebugName);
+				}
+				
 				if ( iGPUIndex == nIDGPUMain )
 				{// 在主显卡上创建复制命令列表对象
 					GRS_THROW_IF_FAILED(stGPUParams[iGPUIndex].m_pID3DDevice->CreateCommandList(0
@@ -542,6 +588,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						, nullptr
 						, IID_PPV_ARGS(&pICmdListCopy)));
 
+					GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdListCopy);
 				}
 
 				// 创建每个显卡上的深度蜡板缓冲区
@@ -589,7 +636,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		}
 
-		//7、创建跨适配器的共享资源堆
+		// 创建跨适配器的共享资源堆
 		{
 		{
 			D3D12_FEATURE_DATA_D3D12_OPTIONS stOptions = {};
@@ -682,7 +729,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		}
 		}
-		//8、创建根签名
+		// 创建根签名
 		{//这个例子中，所有物体使用相同的根签名，因为渲染过程中需要的参数是一样的
 			D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
 
@@ -763,7 +810,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRSQuad);			
 		}
 
-		//9、编译Shader创建渲染管线状态对象
+		// 编译Shader创建渲染管线状态对象
 		{
 #if defined(_DEBUG)
 			// Enable better shader debugging with the graphics debugging tools.
@@ -852,7 +899,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOQuad);
 		}
 
-		//10、准备多个物体参数
+		// 准备多个物体参数
 		{
 			USES_CONVERSION;
 			// 物体个性参数
@@ -1060,7 +1107,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		//11、记录场景物体渲染的捆绑包
+		// 记录场景物体渲染的捆绑包
 		{
 		{
 			//	两编渲染中捆绑包是一样的
@@ -1096,7 +1143,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 		}
 
-		//12、建辅助显卡用来渲染或后处理用的矩形框
+		// 建辅助显卡用来渲染或后处理用的矩形框
 		{
 			ST_GRS_VERTEX_QUAD stVertexQuad[] =
 			{	//(   x,     y,    z,    w   )  (  u,    v   )
@@ -1136,9 +1183,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pstVBVQuad.BufferLocation = pIVBQuad->GetGPUVirtualAddress();
 			pstVBVQuad.StrideInBytes = sizeof(ST_GRS_VERTEX_QUAD);
 			pstVBVQuad.SizeInBytes = sizeof(stVertexQuad);
+
+			// 执行命令，将矩形顶点缓冲上传到第二个显卡的默认堆上
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdList->Close());
+			ID3D12CommandList* ppRenderCommandLists[] = { stGPUParams[nIDGPUSecondary].m_pICmdList.Get() };
+			stGPUParams[nIDGPUSecondary].m_pICmdQueue->ExecuteCommandLists(_countof(ppRenderCommandLists), ppRenderCommandLists);
+
+			n64CurrentFenceValue = n64FenceValue;
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdQueue->Signal(stGPUParams[nIDGPUSecondary].m_pIFence.Get(), n64CurrentFenceValue));
+			n64FenceValue++;
+			if (stGPUParams[nIDGPUSecondary].m_pIFence->GetCompletedValue() < n64CurrentFenceValue)
+			{
+				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
+				WaitForSingleObject(hFenceEvent, INFINITE);
+			}
 		}
 
-		//13、创建在辅助显卡上渲染单位矩形用的SRV堆和Sample堆
+		// 创建在辅助显卡上渲染单位矩形用的SRV堆和Sample堆
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC stHeapDesc = {};
 			stHeapDesc.NumDescriptors = g_nFrameBackBufCount;
@@ -1201,78 +1262,21 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stGPUParams[nIDGPUSecondary].m_pID3DDevice->CreateSampler(&stSamplerDesc, pIDHSampleSecondary->GetCPUDescriptorHandleForHeapStart());
 		}
 
-		//14、创建同步用的围栏
-		{
-			for (int iGPUIndex = 0; iGPUIndex < nMaxGPUParams; iGPUIndex++)
-			{
-				GRS_THROW_IF_FAILED(stGPUParams[iGPUIndex].m_pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&stGPUParams[iGPUIndex].m_pIFence)));
-			}
-			
-			// 在主显卡上创建一个可共享的围栏对象
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateFence(0
-				, D3D12_FENCE_FLAG_SHARED | D3D12_FENCE_FLAG_SHARED_CROSS_ADAPTER
-				, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pISharedFence)));
-
-			// 共享这个围栏，通过句柄方式
-			HANDLE hFenceShared = nullptr;
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateSharedHandle(
-				stGPUParams[nIDGPUMain].m_pISharedFence.Get(),
-				nullptr,
-				GENERIC_ALL,
-				nullptr,
-				&hFenceShared));
-
-			// 在辅助显卡上打开这个围栏对象完成共享
-			HRESULT hrOpenSharedHandleResult = stGPUParams[nIDGPUSecondary].m_pID3DDevice->OpenSharedHandle(hFenceShared
-				, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pISharedFence));
-
-			// 先关闭句柄，再判定是否共享成功
-			::CloseHandle(hFenceShared);
-			GRS_THROW_IF_FAILED(hrOpenSharedHandleResult);
-
-			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (hFenceEvent == nullptr)
-			{
-				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
-			}
-		}
-
-		UINT64 n64fence = 0;
-		UINT64 n64FenceValue = 1ui64;		
-
-		//15、执行第二个Copy命令并等待所有的纹理都上传到了默认堆中
+		// 执行第二个Copy命令并等待所有的纹理都上传到了默认堆中
 		{
 			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdList->Close());
 			ID3D12CommandList* ppRenderCommandLists[] = { stGPUParams[nIDGPUMain].m_pICmdList.Get() };
 			stGPUParams[nIDGPUMain].m_pICmdQueue->ExecuteCommandLists(_countof(ppRenderCommandLists), ppRenderCommandLists);
 
-			n64fence = n64FenceValue;
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64fence));
+			n64CurrentFenceValue = n64FenceValue;
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
 			n64FenceValue++;
-
-
-			// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-			if (stGPUParams[nIDGPUMain].m_pIFence->GetCompletedValue() < n64fence)
-			{
-				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pIFence->SetEventOnCompletion(n64fence, hFenceEvent));
-				WaitForSingleObject(hFenceEvent, INFINITE);
-			}
-
-			//命令分配器先Reset一下，刚才已经执行过了一个复制纹理的命令
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex]->Reset());
-			//Reset命令列表，并重新指定命令分配器和PSO对象
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdList->Reset(
-				stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex].Get()
-				, pIPSOMain.Get()));
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
+	
 		}
 
-		DWORD dwRet = 0;
-		BOOL bExit = FALSE;
-		HANDLE phWait = CreateWaitableTimer(NULL, FALSE, NULL);
-		LARGE_INTEGER liDueTime = {};
-		liDueTime.QuadPart = -1i64;//1秒后开始计时
-		SetWaitableTimer(phWait, &liDueTime, 1, NULL, NULL, 0);//40ms的周期
-		
+		GRS_THROW_IF_FAILED(pICmdListCopy->Close());
+	
 		// Time Value 时间轴变量
 		ULONGLONG n64tmFrameStart = ::GetTickCount64();
 		ULONGLONG n64tmCurrent = n64tmFrameStart;
@@ -1280,18 +1284,71 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		double dModelRotationYAngle = 0.0f;
 
 		XMMATRIX mxRotY;
-		//16、计算投影矩阵
+		// 计算投影矩阵
 		XMMATRIX mxProjection = XMMatrixPerspectiveFovLH(XM_PIDIV4, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 0.1f, 1000.0f);
 
+		DWORD dwRet = 0;
+		BOOL bExit = FALSE;
 		//17、开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{//消息循环，将等待超时值设置为0，同时将定时性的渲染，改成了每次循环都渲染
-			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, INFINITE, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &hFenceEvent, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
-			{//计时器时间到 开始渲染
-				{// 相当于OnRender
+			{//开始新的一帧渲染
+				//OnUpdate()
+				{//计算 Module 模型矩阵 * 视矩阵 view * 裁剪矩阵 projection
+					n64tmCurrent = ::GetTickCount();
+					//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
+					dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * g_fPalstance;
+
+					n64tmFrameStart = n64tmCurrent;
+
+					//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
+					if (dModelRotationYAngle > XM_2PI)
+					{
+						dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
+					}
+					mxRotY = XMMatrixRotationY(static_cast<float>(dModelRotationYAngle));
+
+					//注意实际的变换应当是 Module * World * View * Projection
+					//此处实际World是一个单位矩阵，故省略了
+					//而Module矩阵是先位移再旋转，也可以将旋转矩阵理解为就是World矩阵
+					XMMATRIX xmMVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&g_f3EyePos)
+						, XMLoadFloat3(&g_f3LockAt)
+						, XMLoadFloat3(&g_f3HeapUp))
+						, mxProjection);
+
+					//计算物体的MVP
+					xmMVP = XMMatrixMultiply(mxRotY, xmMVP);
+
+					for (int i = 0; i < nMaxObject; i++)
+					{
+						XMMATRIX xmModulePos = XMMatrixTranslation(stModuleParams[i].v4ModelPos.x
+							, stModuleParams[i].v4ModelPos.y
+							, stModuleParams[i].v4ModelPos.z);
+
+						xmModulePos = XMMatrixMultiply(xmModulePos, xmMVP);
+
+						XMStoreFloat4x4(&stModuleParams[i].pMVPBuf->m_MVP, xmModulePos);
+					}
+				}
+				
+				//OnRender()
+				{
+					// 获取帧号
+					nCurrentFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
+					stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex]->Reset();
+					stGPUParams[nIDGPUMain].m_pICmdList->Reset(	stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex].Get(), pIPSOMain.Get());
+
+					pICmdAllocCopyPerFrame[nCurrentFrameIndex]->Reset();
+					pICmdListCopy->Reset(pICmdAllocCopyPerFrame[nCurrentFrameIndex].Get(), pIPSOMain.Get());
+
+					stGPUParams[nIDGPUSecondary].m_pICmdAllocPerFrame[nCurrentFrameIndex]->Reset();
+					stGPUParams[nIDGPUSecondary].m_pICmdList->Reset(stGPUParams[nIDGPUSecondary].m_pICmdAllocPerFrame[nCurrentFrameIndex].Get(), pIPSOQuad.Get());
+
 					// 主显卡渲染
 					{
 						stGPUParams[nIDGPUMain].m_pICmdList->SetGraphicsRootSignature(pIRSMain.Get());
@@ -1314,7 +1371,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						stGPUParams[nIDGPUMain].m_pICmdList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 						stGPUParams[nIDGPUMain].m_pICmdList->ClearRenderTargetView(rtvHandle, arf4ClearColor, 0, nullptr);
 						stGPUParams[nIDGPUMain].m_pICmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-						//==================================================================================================
+						
 						//执行实际的物体绘制渲染，Draw Call！
 						for (int i = 0; i < nMaxObject; i++)
 						{
@@ -1322,8 +1379,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 							stGPUParams[nIDGPUMain].m_pICmdList->SetDescriptorHeaps(_countof(ppHeapsSkybox), ppHeapsSkybox);
 							stGPUParams[nIDGPUMain].m_pICmdList->ExecuteBundle(stModuleParams[i].pIBundle.Get());
 						}
-						//==================================================================================================
-
+						
 						stGPUParams[nIDGPUMain].m_pICmdList->ResourceBarrier(1
 							, &CD3DX12_RESOURCE_BARRIER::Transition(
 								stGPUParams[nIDGPUMain].m_pIRTRes[nCurrentFrameIndex].Get()
@@ -1333,23 +1389,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdList->Close());
 					}
 
+					{// 第一步：在主显卡的主命令队列上执行主命令列表
+						ID3D12CommandList* ppRenderCommandLists[] = { stGPUParams[nIDGPUMain].m_pICmdList.Get() };
+						stGPUParams[nIDGPUMain].m_pICmdQueue->ExecuteCommandLists(_countof(ppRenderCommandLists), ppRenderCommandLists);
+
+						n64CurrentFenceValue = n64FenceValue;
+						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
+						n64FenceValue++;
+					}
+
 					// 将主显卡的渲染结果复制到共享纹理资源中
 					{
 						if (bCrossAdapterTextureSupport)
 						{
-							// If cross-adapter row-major textures are supported by the adapter,
-							// simply copy the texture into the cross-adapter texture.
+							// 如果适配器支持跨适配器行主纹理，只需将该纹理复制到跨适配器纹理中。
 							pICmdListCopy->CopyResource(stGPUParams[nIDGPUMain].m_pICrossAdapterResPerFrame[nCurrentFrameIndex].Get()
 								, stGPUParams[nIDGPUMain].m_pIRTRes[nCurrentFrameIndex].Get());
 						}
 						else
 						{
-							// If cross-adapter row-major textures are not supported by the adapter,
-							// the texture will be copied over as a buffer so that the texture row
-							// pitch can be explicitly managed.
-
-							// Copy the intermediate render target into the shared buffer using the
-							// memory layout prescribed by the render target.
+							// 如果适配器不支持跨适配器行主纹理，则将纹理复制为缓冲区，
+							// 以便可以显式地管理纹理行间距。使用呈现目标指定的内存布局将中间呈现目标复制到共享缓冲区中。
 							D3D12_RESOURCE_DESC stRenderTargetDesc = stGPUParams[nIDGPUMain].m_pIRTRes[nCurrentFrameIndex]->GetDesc();
 							D3D12_PLACED_SUBRESOURCE_FOOTPRINT stRenderTargetLayout = {};
 
@@ -1365,12 +1425,25 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						GRS_THROW_IF_FAILED(pICmdListCopy->Close());
 					}
 
+					{// 第二步：使用主显卡上的复制命令队列完成渲染目标资源到共享资源间的复制
+					// 通过调用命令队列的Wait命令实现同一个GPU上的各命令队列之间的等待同步 
+						GRS_THROW_IF_FAILED(pICmdQueueCopy->Wait(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
+
+						ID3D12CommandList* ppCopyCommandLists[] = { pICmdListCopy.Get() };
+						pICmdQueueCopy->ExecuteCommandLists(_countof(ppCopyCommandLists), ppCopyCommandLists);
+
+						n64CurrentFenceValue = n64FenceValue;
+						// 复制命令的信号设置在共享的围栏对象上这样使得第二个显卡的命令队列可以在这个围栏上等待
+						// 从而完成不同GPU命令队列间的同步等待
+						GRS_THROW_IF_FAILED(pICmdQueueCopy->Signal(stGPUParams[nIDGPUMain].m_pISharedFence.Get(), n64CurrentFenceValue));
+						n64FenceValue++;
+					}
+
 					// 开始辅助显卡的渲染，通常是后处理，比如运动模糊等，我们这里直接就是把画面绘制出来
 					{
 						if (!bCrossAdapterTextureSupport)
 						{
-							// Copy the buffer in the shared heap into a texture that the secondary
-							// adapter can sample from.
+							// 将共享堆中的缓冲区复制到辅助适配器可以从中取样的纹理中。
 							D3D12_RESOURCE_BARRIER stResBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
 								pISecondaryAdapterTexutrePerFrame[nCurrentFrameIndex].Get(),
 								D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
@@ -1438,37 +1511,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 								stGPUParams[nIDGPUSecondary].m_pIRTRes[nCurrentFrameIndex].Get()
 								, D3D12_RESOURCE_STATE_RENDER_TARGET
 								, D3D12_RESOURCE_STATE_PRESENT));
+
 						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdList->Close());
-					}
-
-					{// 第一步：在主显卡的主命令队列上执行主命令列表
-						ID3D12CommandList* ppRenderCommandLists[] = { stGPUParams[nIDGPUMain].m_pICmdList.Get() };
-						stGPUParams[nIDGPUMain].m_pICmdQueue->ExecuteCommandLists(_countof(ppRenderCommandLists), ppRenderCommandLists);
-
-						n64fence = n64FenceValue;
-						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64fence));
-						n64FenceValue++;
-					}
-
-					{// 第二步：使用主显卡上的复制命令队列完成渲染目标资源到共享资源间的复制
-						// 通过调用命令队列的Wait命令实现同一个GPU上的各命令队列之间的等待同步 
-						GRS_THROW_IF_FAILED(pICmdQueueCopy->Wait(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64fence));
-
-						ID3D12CommandList* ppCopyCommandLists[] = { pICmdListCopy.Get() };
-						pICmdQueueCopy->ExecuteCommandLists(_countof(ppCopyCommandLists), ppCopyCommandLists);
-
-						n64fence = n64FenceValue;
-						// 复制命令的信号设置在共享的围栏对象上这样使得第二个显卡的命令队列可以在这个围栏上等待
-						// 从而完成不同GPU命令队列间的同步等待
-						GRS_THROW_IF_FAILED(pICmdQueueCopy->Signal(stGPUParams[nIDGPUMain].m_pISharedFence.Get(), n64fence));
-						n64FenceValue++;
 					}
 
 					{// 第三步：使用辅助显卡上的主命令队列执行命令列表
 						// 辅助显卡上的主命令队列通过等待共享的围栏对象最终完成了与主显卡之间的同步
 						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdQueue->Wait(
 							stGPUParams[nIDGPUSecondary].m_pISharedFence.Get()
-							, n64fence));
+							, n64CurrentFenceValue));
 
 						ID3D12CommandList* ppBlurCommandLists[] = { stGPUParams[nIDGPUSecondary].m_pICmdList.Get() };
 						stGPUParams[nIDGPUSecondary].m_pICmdQueue->ExecuteCommandLists(_countof(ppBlurCommandLists), ppBlurCommandLists);
@@ -1477,46 +1528,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					// 执行Present命令最终呈现画面
 					GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
 
-					n64fence = n64FenceValue;
-					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdQueue->Signal(stGPUParams[nIDGPUSecondary].m_pIFence.Get(), n64fence));
+					n64CurrentFenceValue = n64FenceValue;
+					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdQueue->Signal(stGPUParams[nIDGPUSecondary].m_pIFence.Get(), n64CurrentFenceValue));
 					n64FenceValue++;
-
-
-					// 最后我们只需要在辅助显卡的围栏同步对象上等待即可完成GPU与CPU执行间的同步
-					UINT64 u64CompletedFenceValue = stGPUParams[nIDGPUSecondary].m_pIFence->GetCompletedValue();
-					if (u64CompletedFenceValue < n64fence)
-					{
-						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(
-							n64fence
-							, hFenceEvent));
-						WaitForSingleObject(hFenceEvent, INFINITE);
-					}
-					// 此时所有GPU上的命令都已经执行完成了，完整的一帧绘制完成了，准备开始下一帧的渲染
-
-					// 获取帧号
-					nCurrentFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-					stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex]->Reset();
-					stGPUParams[nIDGPUMain].m_pICmdList->Reset(
-						stGPUParams[nIDGPUMain].m_pICmdAllocPerFrame[nCurrentFrameIndex].Get()
-						, pIPSOMain.Get());
-
-					pICmdAllocCopyPerFrame[nCurrentFrameIndex]->Reset();
-					pICmdListCopy->Reset(
-						pICmdAllocCopyPerFrame[nCurrentFrameIndex].Get()
-						, pIPSOMain.Get());
-
-					stGPUParams[nIDGPUSecondary].m_pICmdAllocPerFrame[nCurrentFrameIndex]->Reset();
-					stGPUParams[nIDGPUSecondary].m_pICmdList->Reset(
-						stGPUParams[nIDGPUSecondary].m_pICmdAllocPerFrame[nCurrentFrameIndex].Get()
-						, pIPSOQuad.Get());
-
+					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
 				}
-			}
-			break;
-			case WAIT_TIMEOUT:
-			{
-
 			}
 			break;
 			case 1:
@@ -1535,49 +1551,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 			}
 			break;
+			case WAIT_TIMEOUT:
+			{
+
+			}
+			break;
+
 			default:
 				break;
 			}
-			//计算 Module 模型矩阵 * 视矩阵 view * 裁剪矩阵 projection
-			{//相当于OnUpdate
-				n64tmCurrent = ::GetTickCount();
-				//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
-				dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * g_fPalstance;
-
-				n64tmFrameStart = n64tmCurrent;
-
-				//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
-				if (dModelRotationYAngle > XM_2PI)
-				{
-					dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
-				}
-				mxRotY = XMMatrixRotationY(static_cast<float>(dModelRotationYAngle));
-
-				//注意实际的变换应当是 Module * World * View * Projection
-				//此处实际World是一个单位矩阵，故省略了
-				//而Module矩阵是先位移再旋转，也可以将旋转矩阵理解为就是World矩阵
-				XMMATRIX xmMVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&g_f3EyePos)
-					, XMLoadFloat3(&g_f3LockAt)
-					, XMLoadFloat3(&g_f3HeapUp))
-					, mxProjection);
-
-				//计算物体的MVP
-				xmMVP = XMMatrixMultiply(mxRotY, xmMVP);
-
-				for (int i = 0; i < nMaxObject; i++)
-				{
-					XMMATRIX xmModulePos = XMMatrixTranslation(stModuleParams[i].v4ModelPos.x
-						, stModuleParams[i].v4ModelPos.y
-						, stModuleParams[i].v4ModelPos.z);
-
-					xmModulePos = XMMatrixMultiply(xmModulePos, xmMVP);
-
-					XMStoreFloat4x4(&stModuleParams[i].pMVPBuf->m_MVP, xmModulePos);
-				}
-			}
-
-
-
 		}
 	}
 	catch (CGRSCOMException& e)

@@ -151,7 +151,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="D3D12Trigger.cpp" />
+    <ClCompile Include="1-D3D12Trigger.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\shaders.hlsl">

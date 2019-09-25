@@ -18,10 +18,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SkyBox.cpp">
+    <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp">
+    <ClCompile Include="5-SkyBox.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
