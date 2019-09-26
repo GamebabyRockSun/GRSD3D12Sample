@@ -26,7 +26,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\TextureModule.hlsl" />
-    <None Include="Shader\UnitQuad.hlsl" />
+    <None Include="Shader\TextureModule.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\UnitQuad.hlsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
 </Project>

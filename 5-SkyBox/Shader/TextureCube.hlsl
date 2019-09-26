@@ -16,7 +16,6 @@ SamplerState g_sampler : register(s0);
 PSInput VSMain(float4 position : POSITION, float2 uv : TEXCOORD)
 {
 	PSInput result;
-	//position.w = 1.0f;
 	result.position = mul(position, m_MVP);
 	result.uv = uv;
 

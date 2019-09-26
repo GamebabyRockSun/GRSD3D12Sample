@@ -31,12 +31,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\shadow.hlsl">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="Shader\depth.hlsl">
-      <Filter>Shader</Filter>
-    </None>
     <None Include="Shader\TextureCube.hlsl">
       <Filter>Shader</Filter>
     </None>

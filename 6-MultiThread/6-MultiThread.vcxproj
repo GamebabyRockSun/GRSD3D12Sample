@@ -158,15 +158,6 @@
     <ClInclude Include="..\WindowsCommons\DDSTextureLoader12.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\depth.hlsl" />
-    <None Include="Shader\shadow.hlsl">
-      <FileType>Document</FileType>
-      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ShadowVertexShader</EntryPointName>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Shader\TextureCube.hlsl">
       <FileType>Document</FileType>
     </None>

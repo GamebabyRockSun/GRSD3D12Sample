@@ -169,7 +169,7 @@ DXGI_FORMAT GetDXGIFormatFromPixelFormat(const GUID* pPixelFormat)
 
 struct GRS_VERTEX
 {
-	XMFLOAT3 m_vPos;		//Position
+	XMFLOAT4 m_vPos;		//Position
 	XMFLOAT2 m_vTxc;		//Texcoord
 };
 
@@ -581,8 +581,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// Define the vertex input layout.
 			D3D12_INPUT_ELEMENT_DESC stInputElementDescs[] =
 			{
-				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+				{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 			};
 
 			// 创建 graphics pipeline state object (PSO)对象
@@ -929,10 +929,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 定义正方形的3D数据结构，注意此处的纹理坐标我故意设置为大于1
 			GRS_VERTEX stTriangleVertices[] =
 			{
-				{ { -0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f}, { 0.0f, 3.0f } },	// Bottom left.
-				{ { -0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f}, { 0.0f, 0.0f } },	// Top left.
-				{ { 0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f}, { 3.0f, 3.0f } },	// Bottom right.
-				{ { 0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f}, { 3.0f, 0.0f } },		// Top right.
+				{ { -0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f, 1.0f}, { 0.0f, 3.0f } },	// Bottom left.
+				{ { -0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f, 1.0f}, { 0.0f, 0.0f } },	// Top left.
+				{ { 0.25f * fAspectRatio, -0.25f * fAspectRatio, 0.0f, 1.0f}, { 3.0f, 3.0f } },	// Bottom right.
+				{ { 0.25f * fAspectRatio, 0.25f * fAspectRatio, 0.0f, 1.0f}, { 3.0f, 0.0f } },		// Top right.
 			};
 
 			const UINT nVertexBufferSize = sizeof(stTriangleVertices);
