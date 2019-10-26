@@ -27,7 +27,8 @@ using namespace DirectX;
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
 #define GRS_WND_TITLE	_T("GRS DirectX12 UI Render Base Sample")
 
-#define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
+#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
+
 //更简洁的向上边界对齐算法 内存管理中常用 请记住
 #define GRS_UPPER(A,B) ((UINT)(((A)+((B)-1))&~(B - 1)))
 

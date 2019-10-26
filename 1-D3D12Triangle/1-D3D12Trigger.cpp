@@ -26,7 +26,7 @@ using namespace DirectX;
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
 #define GRS_WND_TITLE	_T("GRS DirectX12 Trigger Sample")
 
-#define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
+#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
 class CGRSCOMException
 {

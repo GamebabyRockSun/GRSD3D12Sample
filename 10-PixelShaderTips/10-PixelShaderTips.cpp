@@ -30,7 +30,7 @@ using namespace DirectX;
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
 #define GRS_WND_TITLE	_T("GRS DirectX12 MultiThread Sample")
 
-#define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
+#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
 //新定义的宏用于上取整除法
 #define GRS_UPPER_DIV(A,B) ((UINT)(((A)+((B)-1))/(B)))
@@ -161,7 +161,7 @@ struct ST_GRS_THREAD_PARAMS
 	XMFLOAT2							v2TexSize;
 	TCHAR								pszDDSFile[MAX_PATH];
 	CHAR								pszMeshFile[MAX_PATH];
-	ID3D12Device4*						pID3DDevice;
+	ID3D12Device*						pID3DDevice;
 	ID3D12CommandAllocator*				pICmdAlloc;
 	ID3D12GraphicsCommandList*			pICmdList;
 	ID3D12RootSignature*				pIRS;
@@ -234,7 +234,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter;
-	ComPtr<ID3D12Device4>				pID3DDevice;
+	ComPtr<ID3D12Device>				pID3DDevice;
 	ComPtr<ID3D12CommandQueue>			pIMainCmdQueue;
 	ComPtr<IDXGISwapChain1>				pISwapChain1;
 	ComPtr<IDXGISwapChain3>				pISwapChain3;
@@ -343,6 +343,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{//选择NUMA架构的独显来创建3D设备对象,暂时先不支持集显了，当然你可以修改这些行为
 			D3D12_FEATURE_DATA_ARCHITECTURE stArchitecture = {};
 			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
+			D3D_FEATURE_LEVEL emFeatureLevel = D3D_FEATURE_LEVEL_11_0;
+			HRESULT hr = S_OK;
 			for (UINT nAdapterIndex = 0; 
 				DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(nAdapterIndex, &pIAdapter);
 				++nAdapterIndex)
@@ -356,7 +358,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 
 				GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get()
-					, D3D_FEATURE_LEVEL_12_1
+					, emFeatureLevel
 					, IID_PPV_ARGS(&pID3DDevice)));
 
 				GRS_THROW_IF_FAILED(pID3DDevice->CheckFeatureSupport(
@@ -704,7 +706,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\7777.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Earth_512.dds"), g_pszAppPath);
 			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 

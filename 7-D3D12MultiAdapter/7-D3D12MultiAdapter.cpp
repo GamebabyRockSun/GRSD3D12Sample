@@ -31,7 +31,7 @@ using namespace DirectX;
 #define GRS_WND_TITLE	_T("GRS D3D12 MultiAdapter Sample")
 
 #define GRS_SAFE_RELEASE(p) if(p){(p)->Release();(p)=nullptr;}
-#define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
+#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
 //新定义的宏用于上取整除法
 #define GRS_UPPER_DIV(A,B) ((UINT)(((A)+((B)-1))/(B)))

@@ -28,7 +28,7 @@ using namespace DirectX;
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
 #define GRS_WND_TITLE	_T("GRS DirectX12 Render To Texture Sample")
 
-#define GRS_THROW_IF_FAILED(hr) if (FAILED(hr)){ throw CGRSCOMException(hr); }
+#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
 //新定义的宏用于上取整除法
 #define GRS_UPPER_DIV(A,B) ((UINT)(((A)+((B)-1))/(B)))
