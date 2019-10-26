@@ -140,6 +140,8 @@ struct ST_GRS_PEROBJECT_CB
 {
 	UINT		m_nFun;
 	XMFLOAT2	m_v2TexSize;
+	float		m_fQuatLevel;    //量化bit数，取值2-6
+	float		m_fWaterPower;  //表示水彩扩展力度，单位为像素
 };
 
 // 渲染子线程参数
@@ -159,11 +161,12 @@ struct ST_GRS_THREAD_PARAMS
 	XMFLOAT2							v2TexSize;
 	TCHAR								pszDDSFile[MAX_PATH];
 	CHAR								pszMeshFile[MAX_PATH];
-	ID3D12Device4* pID3DDevice;
-	ID3D12CommandAllocator* pICmdAlloc;
-	ID3D12GraphicsCommandList* pICmdList;
-	ID3D12RootSignature* pIRS;
-	ID3D12PipelineState* pIPSO;
+	ID3D12Device4*						pID3DDevice;
+	ID3D12CommandAllocator*				pICmdAlloc;
+	ID3D12GraphicsCommandList*			pICmdList;
+	ID3D12RootSignature*				pIRS;
+	ID3D12PipelineState*				pIPSO;
+	ID3D12Resource*						pINoiseTexture;    //噪声纹理
 };
 
 int g_iWndWidth = 1024;
@@ -186,7 +189,7 @@ XMFLOAT3							g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
 float								g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
 float								g_fPitch = 0.0f;			// 绕XZ平面的旋转量
 
-double								g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
+double								g_fPalstance = 5.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 
 XMFLOAT4X4							g_mxWorld = {}; //World Matrix
 XMFLOAT4X4							g_mxVP = {};    //View Projection Matrix
@@ -209,8 +212,11 @@ ComPtr<ID3D12DescriptorHeap>		g_pIDSVHeap;				//深度缓冲描述符堆
 
 TCHAR								g_pszAppPath[MAX_PATH] = {};
 
-UINT								g_nFunNO = 0;		//当前使用效果函数的序号（按空格键循环切换）
-UINT								g_nMaxFunNO = 7;    //总的效果函数个数
+UINT								g_nFunNO = 11;		//当前使用效果函数的序号（按空格键循环切换）
+UINT								g_nMaxFunNO = 12;    //总的效果函数个数
+
+float								g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
+float								g_fWaterPower = 40.0f;  //表示水彩扩展力度，单位为像素
 
 UINT __stdcall RenderThread(void* pParam);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -256,6 +262,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3DBlob>					pIPSSphere;
 	ComPtr<ID3D12RootSignature>			pIRootSignature;
 	ComPtr<ID3D12PipelineState>			pIPSOSphere;
+
+	ComPtr<ID3D12Resource>				pINoiseTexture;
+	ComPtr<ID3D12Resource>				pINoiseTextureUpload;
 
 	try
 	{
@@ -522,7 +531,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[3];
 			stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 2, 0); //2 Const Buffer View
-			stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+			stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0); //2 Texture View 1 Texture + 1 Noise Texture
 			stDSPRanges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
 
 			CD3DX12_ROOT_PARAMETER1 stRootParameters[3];
@@ -545,6 +554,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			ComPtr<ID3DBlob> pISignatureBlob;
 			ComPtr<ID3DBlob> pIErrorBlob;
+
 			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
 				, stFeatureData.HighestVersion
 				, &pISignatureBlob
@@ -566,7 +576,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 #else
 			UINT compileFlags = 0;
 #endif
-			//编译为行矩阵形式	   
+			//编译为行矩阵形式
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
 			TCHAR pszShaderFileName[MAX_PATH] = {};
@@ -638,11 +648,63 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOSphere);
 		}
 
-		//11、准备参数并启动多个渲染线程
+		//11、加载DDS噪声纹理
+		{
+			TCHAR pszNoiseTexture[MAX_PATH] = {};
+			StringCchPrintf(pszNoiseTexture, MAX_PATH, _T("%sMesh\\Noise1.dds"), g_pszAppPath);
+			std::unique_ptr<uint8_t[]>			pbDDSData;
+			std::vector<D3D12_SUBRESOURCE_DATA> stArSubResources;
+			DDS_ALPHA_MODE						emAlphaMode = DDS_ALPHA_MODE_UNKNOWN;
+			bool								bIsCube = false;
+
+			GRS_THROW_IF_FAILED(LoadDDSTextureFromFile(
+				pID3DDevice.Get()
+				, pszNoiseTexture
+				, pINoiseTexture.GetAddressOf()
+				, pbDDSData
+				, stArSubResources
+				, SIZE_MAX
+				, &emAlphaMode
+				, &bIsCube));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pINoiseTexture);
+
+			UINT64 n64szUpSphere = GetRequiredIntermediateSize(
+				pINoiseTexture.Get()
+				, 0
+				, static_cast<UINT>(stArSubResources.size()));
+
+			D3D12_RESOURCE_DESC stTXDesc = pINoiseTexture->GetDesc();
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
+				, D3D12_HEAP_FLAG_NONE
+				, &CD3DX12_RESOURCE_DESC::Buffer(n64szUpSphere)
+				, D3D12_RESOURCE_STATE_GENERIC_READ
+				, nullptr
+				, IID_PPV_ARGS(&pINoiseTextureUpload)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pINoiseTextureUpload);
+
+			//执行两个Copy动作将纹理上传到默认堆中
+			UpdateSubresources(pICmdListPre.Get()
+				, pINoiseTexture.Get()
+				, pINoiseTextureUpload.Get()
+				, 0
+				, 0
+				, static_cast<UINT>(stArSubResources.size())
+				, stArSubResources.data());
+
+			//同步
+			pICmdListPre->ResourceBarrier(1
+				, &CD3DX12_RESOURCE_BARRIER::Transition(pINoiseTexture.Get()
+					, D3D12_RESOURCE_STATE_COPY_DEST
+					, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		}
+
+		//12、准备参数并启动多个渲染线程
 		{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\sphere.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\7777.dds"), g_pszAppPath);
 			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
@@ -678,6 +740,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				g_stThreadParams[i].pID3DDevice = pID3DDevice.Get();
 				g_stThreadParams[i].pIRS = pIRootSignature.Get();
 				g_stThreadParams[i].pIPSO = pIPSOSphere.Get();
+				g_stThreadParams[i].pINoiseTexture = pINoiseTexture.Get();
 
 				arHWaited.Add(g_stThreadParams[i].hEventRenderOver); //添加到被等待队列里
 
@@ -703,7 +766,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		//12、创建围栏对象
+		//13、创建围栏对象
 		{
 			GRS_THROW_IF_FAILED(pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pIFence)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIFence);
@@ -756,6 +819,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 					arCmdList.RemoveAll();
 					//执行命令列表
+					arCmdList.Add(pICmdListPre.Get());  //主线程负责加载Noise纹理
 					arCmdList.Add(g_stThreadParams[g_nThdSphere].pICmdList);
 					arCmdList.Add(g_stThreadParams[g_nThdCube].pICmdList);
 					arCmdList.Add(g_stThreadParams[g_nThdPlane].pICmdList);
@@ -808,6 +872,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 								, XMLoadFloat3(&g_f3HeapUp))
 								, XMMatrixPerspectiveFovLH(XM_PIDIV4
 									, (FLOAT)g_iWndWidth / (FLOAT)g_iWndHeight, 0.1f, 1000.0f)));
+
 					}
 
 					//渲染前处理
@@ -823,6 +888,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
 							, nCurrentFrameIndex, g_nRTVDescriptorSize);
 						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
+
 						//设置渲染目标
 						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
 
@@ -928,13 +994,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, 0);
 			dwRet -= WAIT_OBJECT_0;
 
-			if (dwRet >= 0 && dwRet < g_nMaxThread)
-			{
+			if ( dwRet >= 0 && dwRet < g_nMaxThread )
+			{//有线程的句柄已经成为有信号状态，即对应线程已经退出
 				bExit = TRUE;
 			}
 		}
 
-		KillTimer(hWnd, WM_USER + 100);
+		::KillTimer(hWnd, WM_USER + 100);
 
 	}
 	catch (CGRSCOMException & e)
@@ -1068,7 +1134,7 @@ UINT __stdcall RenderThread(void* pParam)
 		//2、创建描述符堆
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC stSRVCBVHPDesc = {};
-			stSRVCBVHPDesc.NumDescriptors = 3; // 2 CBV + 1 SRV
+			stSRVCBVHPDesc.NumDescriptors = 4; // 2 CBV + 2 SRV
 			stSRVCBVHPDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 			stSRVCBVHPDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
@@ -1093,6 +1159,15 @@ UINT __stdcall RenderThread(void* pParam)
 
 			pThdPms->pID3DDevice->CreateShaderResourceView(
 				pITexture.Get()
+				, &stSRVDesc
+				, stCbvSrvHandle);
+
+			//创建噪声纹理的描述符
+			stTXDesc = pThdPms->pINoiseTexture->GetDesc();
+			stSRVDesc.Format = stTXDesc.Format;
+			stCbvSrvHandle.Offset(1, g_nSRVDescriptorSize);
+			pThdPms->pID3DDevice->CreateShaderResourceView(
+				pThdPms->pINoiseTexture
 				, &stSRVDesc
 				, stCbvSrvHandle);
 		}
@@ -1225,8 +1300,6 @@ UINT __stdcall RenderThread(void* pParam)
 			::HeapFree(::GetProcessHeap(), 0, pnIndices);
 		}
 
-
-
 		//6、设置事件对象 通知并切回主线程 完成资源的第二个Copy命令
 		{
 			GRS_THROW_IF_FAILED(pThdPms->pICmdList->Close());
@@ -1266,13 +1339,13 @@ UINT __stdcall RenderThread(void* pParam)
 					{
 						if (pThdPms->v4ModelPos.y >= 2.0f * fRawYPos)
 						{
-							fUp = -1.0f;
+							fUp = -0.2f;
 							pThdPms->v4ModelPos.y = 2.0f * fRawYPos;
 						}
 
 						if (pThdPms->v4ModelPos.y <= fRawYPos)
 						{
-							fUp = 1.0f;
+							fUp = 0.2f;
 							pThdPms->v4ModelPos.y = fRawYPos;
 						}
 
@@ -1292,6 +1365,8 @@ UINT __stdcall RenderThread(void* pParam)
 
 					CopyMemory(&pPerObjBuf->m_v2TexSize, &pThdPms->v2TexSize,sizeof(ST_GRS_PEROBJECT_CB));
 					pPerObjBuf->m_nFun = g_nFunNO;
+					pPerObjBuf->m_fQuatLevel = g_fQuatLevel;
+					pPerObjBuf->m_fWaterPower = g_fWaterPower;
 				}
 
 				//---------------------------------------------------------------------------------------------
@@ -1394,7 +1469,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 
-		if (VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode)
+		if (11 == g_nFunNO)
+		{//当进行水彩画效果渲染时控制生效
+			if ( 'Q' == n16KeyCode || 'q' == n16KeyCode )
+			{//q 增加水彩取色半径
+				g_fWaterPower += 1.0f;
+				if (g_fWaterPower >= 64.0f)
+				{
+					g_fWaterPower = 8.0f;
+				}
+			}
+
+			if ( 'E' == n16KeyCode || 'e' == n16KeyCode )
+			{//e 控制量化参数，范围 2 - 6
+				g_fQuatLevel += 1.0f;
+				if (g_fQuatLevel > 6.0f)
+				{
+					g_fQuatLevel = 2.0f;
+				}
+			}
+
+		}
+
+		if ( VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode )
 		{
 			//double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 			g_fPalstance += 10 * XM_PI / 180.0f;
@@ -1487,7 +1584,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (VK_TAB == n16KeyCode)
 		{//按Tab键还原摄像机位置
-			g_f3EyePos = XMFLOAT3(0.0f, 0.0f, -10.0f); //眼睛位置
+			g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f); //眼睛位置
 			g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
 			g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
 		}
