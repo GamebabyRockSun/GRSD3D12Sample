@@ -212,7 +212,7 @@ ComPtr<ID3D12DescriptorHeap>		g_pIDSVHeap;				//深度缓冲描述符堆
 
 TCHAR								g_pszAppPath[MAX_PATH] = {};
 
-UINT								g_nFunNO = 11;		//当前使用效果函数的序号（按空格键循环切换）
+UINT								g_nFunNO = 0;		//当前使用效果函数的序号（按空格键循环切换）
 UINT								g_nMaxFunNO = 12;    //总的效果函数个数
 
 float								g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
@@ -826,7 +826,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					arCmdList.Add(g_stThreadParams[g_nThdCube].pICmdList);
 					arCmdList.Add(g_stThreadParams[g_nThdPlane].pICmdList);
 
-					pIMainCmdQueue->ExecuteCommandLists(static_cast<UINT>(arCmdList.GetCount()), arCmdList.GetData());
+					pIMainCmdQueue->ExecuteCommandLists(
+						static_cast<UINT>(arCmdList.GetCount())
+						, arCmdList.GetData());
 
 					//---------------------------------------------------------------------------------------------
 					//开始同步GPU与CPU的执行，先记录围栏标记值

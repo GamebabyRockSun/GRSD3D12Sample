@@ -55,7 +55,7 @@ float4 Anaglyph(PSInput input)
 
 static float2 g_v2MosaicSize1 = float2(8.0f, 8.0f);
 float4 Mosaic1(PSInput input)
-{
+{//方形马赛克
 	float2 v2PixelSite 
 		= float2(input.m_v2UV.x * g_v2TexSize.x
 			, input.m_v2UV.y * g_v2TexSize.y);
@@ -69,8 +69,9 @@ float4 Mosaic1(PSInput input)
 }
 
 static float2 g_v2MosaicSize2 = float2(16.0f, 16.0f);
+
 float4 Mosaic2(PSInput input)
-{
+{//圆形马赛克
 	float2 v2PixelSite
 		= float2(input.m_v2UV.x * g_v2TexSize.x
 			, input.m_v2UV.y * g_v2TexSize.y);
@@ -101,7 +102,7 @@ float4 Mosaic2(PSInput input)
 }
 
 float4 Do_Filter(float3x3 mxFilter,float2 v2UV,float2 v2TexSize, Texture2D t2dTexture)
-{
+{//根据滤波矩阵计算“九宫格”形式像素的滤波结果的函数
 	float2 v2aUVDelta[3][3]
 		= {
 			{ float2(-1.0f,-1.0f), float2(0.0f,-1.0f),float2(1.0f,-1.0f) },
@@ -260,7 +261,7 @@ float4 Watercolour(float2 v2UV,float2 v2TexSize)
 	float2 v2NewUV 
 		= float2(v2UV.x + c4NoiseColor.x / v2TexSize.x
 			, v2UV.y + c4NoiseColor.y / v2TexSize.y);
-	float4 c4Color = g_texture.Sample(g_sampler, v2UV);
+	float4 c4Color = g_texture.Sample(g_sampler, v2NewUV);
 	return Quant(c4Color, 255 / pow(2, g_fQuatLevel));
 }
 

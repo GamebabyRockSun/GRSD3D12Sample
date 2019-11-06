@@ -365,7 +365,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				if ( SUCCEEDED(hrEnumOutput) && nullptr != pIOutput)
 				{//该适配器带有显示输出，通常是集显（针对笔记本的情况）
 					//我们将集显称为Main Device，因为用它来后处理和最终输出
-					GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pID3DDevice)));
+					GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp
+						, D3D_FEATURE_LEVEL_12_1
+						, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pID3DDevice)));
 				}
 				else
 				{//不带显示输出的，通常是独显（针对笔记本的情况）
