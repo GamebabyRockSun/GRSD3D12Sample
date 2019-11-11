@@ -104,10 +104,11 @@ float4 Do_Filter(float3x3 mxFilter,float2 v2UV,float2 v2TexSize, Texture2D t2dTe
 {//根据滤波矩阵计算“九宫格”形式像素的滤波结果的函数
 	float2 v2aUVDelta[3][3]
 		= {
-			{ float2(-1.0f,-1.0f), float2(0.0f,-1.0f),float2(1.0f,-1.0f) },
-			{ float2(0.0f,-1.0f),  float2(0.0f,0.0f),  float2(1.0f,0.0f)  },
-			{ float2(1.0f,-1.0f),  float2(0.0f,1.0f),  float2(1.0f,1.0f)  },
+			{ float2(-1.0f,-1.0f), float2(0.0f,-1.0f), float2(1.0f,-1.0f) },
+			{ float2(-1.0f,0.0f),  float2(0.0f,0.0f),  float2(1.0f,0.0f)  },
+			{ float2(-1.0f,1.0f),  float2(0.0f,1.0f),  float2(1.0f,1.0f)  },
 		};
+	
 	float4 c4Color = float4(0.0f, 0.0f, 0.0f, 0.0f);
 	for (int i = 0; i < 3; i++)
 	{
@@ -115,7 +116,7 @@ float4 Do_Filter(float3x3 mxFilter,float2 v2UV,float2 v2TexSize, Texture2D t2dTe
 		{
 			//计算采样点，得到当前像素附件的像素点的坐标（上下左右，八方）
 			float2 v2NearbySite
-				= float2(v2UV.x + v2aUVDelta[i][j].x, v2UV.y + v2aUVDelta[i][j].y);
+				= v2UV + v2aUVDelta[i][j];
 			float2 v2NearbyUV
 				= float2(v2NearbySite.x / v2TexSize.x, v2NearbySite.y / v2TexSize.y);
 			c4Color += (t2dTexture.Sample(g_sampler, v2NearbyUV) * mxFilter[i][j]);
@@ -290,11 +291,11 @@ float4 PSMain(PSInput input) : SV_TARGET
 		c4PixelColor = Mosaic2(input);
 	}
 	else if (5 == g_nFun)
-	{		//Box模糊，9点颜色平均值
+	{//Box模糊，9点颜色平均值
 		c4PixelColor = BoxFlur(input.m_v2UV, g_v2TexSize);
 	}
 	else if (6 == g_nFun)
-	{		//高斯模糊
+	{//高斯模糊
 		c4PixelColor = GaussianFlur(input.m_v2UV, g_v2TexSize);
 	}
 	else if (7 == g_nFun)
