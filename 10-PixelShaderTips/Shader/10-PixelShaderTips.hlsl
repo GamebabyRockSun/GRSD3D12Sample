@@ -40,7 +40,8 @@ float4 BlackAndWhitePhoto(float4 inColor)
 float4 Anaglyph(PSInput input)
 {
 	//实现浮雕效果
-	float2 upLeftUV = float2(input.m_v2UV.x - 1.0 / g_v2TexSize.x, input.m_v2UV.y - 1.0 / g_v2TexSize.y);
+	float2 upLeftUV = float2(input.m_v2UV.x - 1.0 / g_v2TexSize.x
+		, input.m_v2UV.y - 1.0 / g_v2TexSize.y);
 	float4 bkColor = float4(0.5, 0.5, 0.5, 1.0);
 	float4 curColor = g_texture.Sample(g_sampler, input.m_v2UV);
 	float4 upLeftColor = g_texture.Sample(g_sampler, upLeftUV);
@@ -49,11 +50,10 @@ float4 Anaglyph(PSInput input)
 
 	float h = 0.3 * delColor.x + 0.59 * delColor.y + 0.11 * delColor.z;
 	float4 _outColor = float4(h, h, h, 0.0) + bkColor;
-	return delColor + bkColor;
 	return _outColor;
 }
 
-static float2 g_v2MosaicSize1 = float2(8.0f, 8.0f);
+static float2 g_v2MosaicSize1 = float2(32.0f, 32.0f);
 float4 Mosaic1(PSInput input)
 {//方形马赛克
 	float2 v2PixelSite 
@@ -69,7 +69,6 @@ float4 Mosaic1(PSInput input)
 }
 
 static float2 g_v2MosaicSize2 = float2(16.0f, 16.0f);
-
 float4 Mosaic2(PSInput input)
 {//圆形马赛克
 	float2 v2PixelSite
