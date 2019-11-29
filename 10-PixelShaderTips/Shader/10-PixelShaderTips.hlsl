@@ -199,9 +199,9 @@ float4 SobelAnisotropyContour(float2 v2UV, float2 v2TexSize)
 				  );
 
 	float4 c4Color1 = Do_Filter(mxOperators1, v2PixelSite, v2TexSize, g_texture);
-	//float4 c4Color2 = Do_Filter(mxOperators2, v2PixelSite, v2TexSize, g_texture);
+	float4 c4Color2 = Do_Filter(mxOperators2, v2PixelSite, v2TexSize, g_texture);
 
-	//c4Color1 += c4Color2;
+	c4Color1 += c4Color2;
 
 	////计算颜色溢色的简单方法
 	//float fMaxColorComponent 
@@ -215,11 +215,22 @@ float4 SobelAnisotropyContour(float2 v2UV, float2 v2TexSize)
 	//			, c4Color1.z))
 	//	,0.0f);
 
-	//c4Color1 = (c4Color1 - float4(fMinColorComponent
-	//	, fMinColorComponent
-	//	, fMinColorComponent
-	//	, fMinColorComponent))
-	//	/(fMaxColorComponent- fMinColorComponent);
+	//if (fMaxColorComponent - fMinColorComponent > 1.0f)
+	//{
+	//	c4Color1 = (c4Color1 - float4(fMinColorComponent
+	//		, fMinColorComponent
+	//		, fMinColorComponent
+	//		, fMinColorComponent))
+	//		/ (fMaxColorComponent - fMinColorComponent);
+	//}
+	//else if( fMinColorComponent < 1.0f )
+	//{
+	//	c4Color1 = (c4Color1 - float4(fMinColorComponent
+	//		, fMinColorComponent
+	//		, fMinColorComponent
+	//		, fMinColorComponent));
+	//}
+
 
 	float fDeltaGray = 0.3f * c4Color1.x + 0.59 * c4Color1.y + 0.11 * c4Color1.z;
 

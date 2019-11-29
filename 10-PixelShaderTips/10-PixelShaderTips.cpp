@@ -214,7 +214,6 @@ TCHAR								g_pszAppPath[MAX_PATH] = {};
 
 UINT								g_nFunNO = 0;		//当前使用效果函数的序号（按空格键循环切换）
 UINT								g_nMaxFunNO = 12;    //总的效果函数个数
-
 float								g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
 float								g_fWaterPower = 40.0f;  //表示水彩扩展力度，单位为像素
 
