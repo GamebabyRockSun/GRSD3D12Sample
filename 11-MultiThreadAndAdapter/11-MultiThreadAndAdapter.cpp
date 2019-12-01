@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <tchar.h>
 #include <fstream>  //for ifstream
-#include <comdef.h >
 #include <wrl.h> //添加WTL支持 方便使用COM
 #include <atlconv.h>
 #include <atlcoll.h>  //for atl array
@@ -27,11 +26,6 @@ using namespace DirectX;
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
-#if defined(_DEBUG)
-#pragma comment(lib, "comsuppwd.lib")
-#else
-#pragma comment(lib, "comsuppw.lib")
-#endif // DEBUG
 
 #ifndef GRS_BLOCK
 
@@ -337,7 +331,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12Resource>				pIVBQuadUpload;
 	D3D12_VERTEX_BUFFER_VIEW			pstVBVQuad;
 	SIZE_T								szSecondPassCB = GRS_UPPER(sizeof(ST_GRS_PEROBJECT_CB), 256);
-	ST_GRS_PEROBJECT_CB* pstCBSecondPass = nullptr;
+	ST_GRS_PEROBJECT_CB*				pstCBSecondPass = nullptr;
 	ComPtr<ID3D12Resource>				pICBResSecondPass;
 	ComPtr<ID3D12Resource>				pINoiseTexture;
 	ComPtr<ID3D12Resource>				pINoiseTextureUpload;
@@ -349,8 +343,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12PipelineState>			pIPSOPostPass[c_nPostPassCnt];
 	ComPtr<ID3D12DescriptorHeap>		pISRVHeapPostPass[c_nPostPassCnt];
 	ComPtr<ID3D12DescriptorHeap>		pISampleHeapPostPass;
-
-	ComPtr<ID3D12PipelineState>			pIPSODoNothing;		//简单的显示颜色的PS的管线状态对象
 
 	try
 	{
@@ -1240,31 +1232,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, IID_PPV_ARGS(&pIPSOPostPass[c_nPostPass1])));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOPostPass[c_nPostPass1]);
 			//---------------------------------------------------------------------------------------------------
-
-			// DoNothing PS PSO
-			pIPSCode.Reset();
-			pIErrMsg.Reset();
-
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s11-MultiThreadAndAdapter\\Shader\\11-DoNothingPS.hlsl"), g_pszAppPath);
-
-			//后处理渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
-			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-				, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
-			if (FAILED(hr))
-			{
-				if (nullptr != pIErrMsg)
-				{
-					StringCchPrintfA(pszErrMsg, MAX_PATH, "\n%s\n", (CHAR*)pIErrMsg->GetBufferPointer());
-					::OutputDebugStringA(pszErrMsg);
-				}
-				throw CGRSCOMException(hr);
-			}
-
-			stPSOThirdPassDesc.PS = CD3DX12_SHADER_BYTECODE(pIPSCode.Get());
-			GRS_THROW_IF_FAILED(
-				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(
-					&stPSOThirdPassDesc, IID_PPV_ARGS(&pIPSODoNothing)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSODoNothing);
 		}}
 
 		//10、准备参数并启动多个渲染线程
@@ -2004,15 +1971,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 						//-------------------------------------------------------------------------------------------------------
 						// 3 Thrid Pass
-						if (0 == g_nUsePSID)
-						{//没有 高斯模糊
-							pICMDListPostPass->SetPipelineState(pIPSODoNothing.Get());
-						}
-						else
-						{//使用高斯模糊
-							pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass0].Get());
-						}
-
+						//使用高斯模糊
+						pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass0].Get());
+						
 						arDesHeaps.RemoveAll();
 						arDesHeaps.Add(pISRVHeapPostPass[c_nPostPass0].Get());
 						arDesHeaps.Add(pISampleHeapPostPass.Get());
@@ -2054,15 +2015,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 						//-------------------------------------------------------------------------------------------------------	
 						// 4 Fourth Pass
-						if (0 == g_nUsePSID)
-						{//没有 高斯模糊
-							pICMDListPostPass->SetPipelineState(pIPSODoNothing.Get());
-						}
-						else
-						{//高斯模糊
-							pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass1].Get());
-						}
-
+						//高斯模糊
+						pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass1].Get());
+					
 						arDesHeaps.RemoveAll();
 						arDesHeaps.Add(pISRVHeapPostPass[c_nPostPass1].Get());
 						arDesHeaps.Add(pISampleHeapPostPass.Get());
@@ -2176,10 +2131,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	catch (CGRSCOMException & e)
 	{//发生了COM异常
 		e;
-	}
-	catch (_com_error & e)
-	{
-		e.ErrorInfo();
 	}
 
 	try
