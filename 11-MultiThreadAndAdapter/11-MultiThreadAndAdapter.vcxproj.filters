@@ -43,7 +43,6 @@
     <None Include="Shader\11-WaterColourPS.hlsl">
       <Filter>Shader</Filter>
     </None>
-    <None Include="Shader\blurShaders_MS.hlsl" />
     <None Include="Shader\11-DoNothingPS.hlsl">
       <Filter>Shader</Filter>
     </None>

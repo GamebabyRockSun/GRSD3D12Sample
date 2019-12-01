@@ -179,7 +179,7 @@ struct ST_GRS_THREAD_PARAMS
 
 	HANDLE								m_hEventRun;
 	HANDLE								m_hEventRenderOver;
-	
+
 	UINT								m_nCurrentFrameIndex;//当前渲染后缓冲序号
 	ULONGLONG							m_nStartTime;		 //当前帧开始时间
 	ULONGLONG							m_nCurrentTime;	     //当前时间
@@ -188,16 +188,16 @@ struct ST_GRS_THREAD_PARAMS
 	TCHAR								m_pszDDSFile[MAX_PATH];
 	CHAR								m_pszMeshFile[MAX_PATH];
 
-	ID3D12Device4*						m_pID3D12Device4;
+	ID3D12Device4* m_pID3D12Device4;
 
-	ID3D12DescriptorHeap*				m_pIRTVHeap;
-	ID3D12DescriptorHeap*				m_pIDSVHeap;
+	ID3D12DescriptorHeap* m_pIRTVHeap;
+	ID3D12DescriptorHeap* m_pIDSVHeap;
 
-	ID3D12CommandAllocator*				m_pICMDAlloc;
-	ID3D12GraphicsCommandList*			m_pICMDList;
+	ID3D12CommandAllocator* m_pICMDAlloc;
+	ID3D12GraphicsCommandList* m_pICMDList;
 
-	ID3D12RootSignature*				m_pIRS;
-	ID3D12PipelineState*				m_pIPSO;
+	ID3D12RootSignature* m_pIRS;
+	ID3D12PipelineState* m_pIPSO;
 };
 
 // 顶点结构
@@ -263,7 +263,7 @@ ST_GRS_THREAD_PARAMS				g_stThread[g_nMaxThread] = {};
 TCHAR								g_pszAppPath[MAX_PATH] = {};
 
 //后处理需要的参数，设置为全局变量方便在窗口过程中根据按键输入调整
-UINT								g_nFunNO = 0;		//当前使用效果函数的序号（按空格键循环切换）
+UINT								g_nFunNO = 1;		//当前使用效果函数的序号（按空格键循环切换）
 UINT								g_nMaxFunNO = 2;    //总的效果函数个数
 float								g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
 float								g_fWaterPower = 40.0f;  //表示水彩扩展力度，单位为像素
@@ -326,29 +326,31 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	CAtlArray<HANDLE>					arHSubThread;
 
 	//辅助显卡上后处理需要的资源变量（Second Pass）
-	ComPtr<ID3D12Resource>				pIOffLineRTRes[g_nFrameBackBufCount]; //离线渲染的渲染目标资源
-	ComPtr<ID3D12DescriptorHeap>		pIRTVOffLine;						  //离线渲染RTV
+	const UINT							c_nPostPassCnt = 2;										//后处理趟数
+	const UINT							c_nPostPass0 = 0;
+	const UINT							c_nPostPass1 = 1;
+	ComPtr<ID3D12Resource>				pIOffLineRTRes[c_nPostPassCnt][g_nFrameBackBufCount];	//离线渲染的渲染目标资源
+	ComPtr<ID3D12DescriptorHeap>		pIRTVOffLine[c_nPostPassCnt];							//离线渲染RTV
 
 	// Second Pass Values
 	ComPtr<ID3D12Resource>				pIVBQuad;
 	ComPtr<ID3D12Resource>				pIVBQuadUpload;
 	D3D12_VERTEX_BUFFER_VIEW			pstVBVQuad;
 	SIZE_T								szSecondPassCB = GRS_UPPER(sizeof(ST_GRS_PEROBJECT_CB), 256);
-	ST_GRS_PEROBJECT_CB*				pstCBSecondPass = nullptr;
-	ComPtr<ID3D12Resource>				pICBResSecondPass;	
+	ST_GRS_PEROBJECT_CB* pstCBSecondPass = nullptr;
+	ComPtr<ID3D12Resource>				pICBResSecondPass;
 	ComPtr<ID3D12Resource>				pINoiseTexture;
 	ComPtr<ID3D12Resource>				pINoiseTextureUpload;
-	
+
 	// Third Pass Values
-	ComPtr<ID3D12CommandAllocator>		pICMDAllocThirdPass;
-	ComPtr<ID3D12GraphicsCommandList>	pICMDListThirdPass;
-	ComPtr<ID3D12RootSignature>			pIRSThirdPass;
-	ComPtr<ID3D12PipelineState>			pIPSOThirdPass;
-	ComPtr<ID3D12DescriptorHeap>		pISRVHeapThirdPass;
-	ComPtr<ID3D12DescriptorHeap>		pISampleHeapThirdPass;
+	ComPtr<ID3D12CommandAllocator>		pICMDAllocPostPass;
+	ComPtr<ID3D12GraphicsCommandList>	pICMDListPostPass;
+	ComPtr<ID3D12RootSignature>			pIRSPostPass;
+	ComPtr<ID3D12PipelineState>			pIPSOPostPass[c_nPostPassCnt];
+	ComPtr<ID3D12DescriptorHeap>		pISRVHeapPostPass[c_nPostPassCnt];
+	ComPtr<ID3D12DescriptorHeap>		pISampleHeapPostPass;
 
 	ComPtr<ID3D12PipelineState>			pIPSODoNothing;		//简单的显示颜色的PS的管线状态对象
-	ComPtr<ID3D12PipelineState>			pIPSOBothwayBlur;	//双向高斯模糊的合并版
 
 	try
 	{
@@ -373,15 +375,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			//---------------------------------------------------------------------------------------------
 			WNDCLASSEX wcex = {};
-			wcex.cbSize			= sizeof(WNDCLASSEX);
-			wcex.style			= CS_GLOBALCLASS;
-			wcex.lpfnWndProc	= WndProc;
-			wcex.cbClsExtra		= 0;
-			wcex.cbWndExtra		= 0;
-			wcex.hInstance		= hInstance;
-			wcex.hCursor		= LoadCursor(nullptr, IDC_ARROW);
-			wcex.hbrBackground	= (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
-			wcex.lpszClassName	= GRS_WND_CLASS_NAME;
+			wcex.cbSize = sizeof(WNDCLASSEX);
+			wcex.style = CS_GLOBALCLASS;
+			wcex.lpfnWndProc = WndProc;
+			wcex.cbClsExtra = 0;
+			wcex.cbWndExtra = 0;
+			wcex.hInstance = hInstance;
+			wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+			wcex.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);		//防止无聊的背景重绘
+			wcex.lpszClassName = GRS_WND_CLASS_NAME;
 			RegisterClassEx(&wcex);
 
 			DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
@@ -396,7 +398,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, posX, posY, rtWnd.right - rtWnd.left, rtWnd.bottom - rtWnd.top
 				, nullptr, nullptr, hInstance, nullptr);
 
-			if ( !hWnd )
+			if (!hWnd)
 			{
 				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
 			}
@@ -443,11 +445,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					i
 					, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
 					, IID_PPV_ARGS(&pIAdapter1)));
-				++i )
+				++i)
 			{
 				GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc[i]));
 
-				if ( stAdapterDesc[i].Flags & DXGI_ADAPTER_FLAG_SOFTWARE )
+				if (stAdapterDesc[i].Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 				{//跳过软件虚拟适配器设备，
 				 //注释这个if判断，可以使用一个真实GPU和一个虚拟软适配器来看双GPU的示例
 					continue;
@@ -456,7 +458,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				HRESULT hr = D3D12CreateDevice(pIAdapter1.Get()
 					, emFeatureLevel
 					, IID_PPV_ARGS(stGPU[i].m_pID3D12Device4.GetAddressOf()));
-				
+
 				if (!SUCCEEDED(hr))
 				{
 					::MessageBox(hWnd
@@ -483,8 +485,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				pIAdapter1.Reset();
 			}
 
-			if ( nullptr == stGPU[c_nMainGPU].m_pID3D12Device4.Get()
-				|| nullptr == stGPU[c_nSecondGPU].m_pID3D12Device4.Get() )
+			if (nullptr == stGPU[c_nMainGPU].m_pID3D12Device4.Get()
+				|| nullptr == stGPU[c_nSecondGPU].m_pID3D12Device4.Get())
 			{// 机器上没有两个以上显卡 退出了事 
 				::MessageBox(hWnd
 					, _T("非常抱歉的通知您，\r\n机器中显卡数量不足两个，示例程序将退出！")
@@ -499,7 +501,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				&stQueueDesc
 				, IID_PPV_ARGS(&pICmdQueueCopy)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdQueueCopy);
-			
+
 			//将被使用的设备名称显示到窗口标题里
 			TCHAR pszWndTitle[MAX_PATH] = {};
 			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
@@ -517,7 +519,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			WCHAR pszDebugName[MAX_PATH] = {};
 
 			for (int i = 0; i < c_nMaxGPUCnt; i++)
-			{				
+			{
 				GRS_THROW_IF_FAILED(stGPU[i].m_pID3D12Device4->CreateCommandAllocator(
 					D3D12_COMMAND_LIST_TYPE_DIRECT
 					, IID_PPV_ARGS(&stGPU[i].m_pICMDAlloc)));
@@ -526,7 +528,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				{
 					stGPU[i].m_pICMDAlloc->SetName(pszDebugName);
 				}
-				
+
 				GRS_THROW_IF_FAILED(stGPU[i].m_pID3D12Device4->CreateCommandList(
 					0, D3D12_COMMAND_LIST_TYPE_DIRECT
 					, stGPU[i].m_pICMDAlloc.Get(), nullptr, IID_PPV_ARGS(&stGPU[i].m_pICMDList)));
@@ -572,12 +574,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// Third Pass 命令列表（辅助显卡做后处理，创建在辅助显卡上）
 			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateCommandAllocator(
 				D3D12_COMMAND_LIST_TYPE_DIRECT
-				, IID_PPV_ARGS(&pICMDAllocThirdPass)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICMDAllocThirdPass);
+				, IID_PPV_ARGS(&pICMDAllocPostPass)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICMDAllocPostPass);
 			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateCommandList(
 				0, D3D12_COMMAND_LIST_TYPE_DIRECT
-				, pICMDAllocThirdPass.Get(), nullptr, IID_PPV_ARGS(&pICMDListThirdPass)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICMDListThirdPass);
+				, pICMDAllocPostPass.Get(), nullptr, IID_PPV_ARGS(&pICMDListPostPass)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICMDListPostPass);
 		}
 
 		//6、创建围栏对象，以及多GPU同步围栏对象
@@ -612,10 +614,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				&hFenceShared));
 
 			// 在辅助显卡上打开这个围栏对象完成共享
-			HRESULT hrOpenSharedHandleResult 
+			HRESULT hrOpenSharedHandleResult
 				= stGPU[c_nSecondGPU].m_pID3D12Device4->OpenSharedHandle(
-				hFenceShared
-				, IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pISharedFence));
+					hFenceShared
+					, IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pISharedFence));
 
 			// 先关闭句柄，再判定是否共享成功
 			::CloseHandle(hFenceShared);
@@ -625,13 +627,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//7、创建交换链，创建共享堆
 		{
 			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
-			stSwapChainDesc.BufferCount			= g_nFrameBackBufCount;
-			stSwapChainDesc.Width				= g_iWndWidth;
-			stSwapChainDesc.Height				= g_iWndHeight;
-			stSwapChainDesc.Format				= emRTFormat;
-			stSwapChainDesc.BufferUsage			= DXGI_USAGE_RENDER_TARGET_OUTPUT;
-			stSwapChainDesc.SwapEffect			= DXGI_SWAP_EFFECT_FLIP_DISCARD;
-			stSwapChainDesc.SampleDesc.Count	= 1;
+			stSwapChainDesc.BufferCount = g_nFrameBackBufCount;
+			stSwapChainDesc.Width = g_iWndWidth;
+			stSwapChainDesc.Height = g_iWndHeight;
+			stSwapChainDesc.Format = emRTFormat;
+			stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+			stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+			stSwapChainDesc.SampleDesc.Count = 1;
 
 			//在第二个显卡上Present
 			GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
@@ -653,9 +655,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			//创建RTV(渲染目标视图)描述符堆(这里堆的含义应当理解为数组或者固定大小元素的固定大小显存池)
 			D3D12_DESCRIPTOR_HEAP_DESC stRTVHeapDesc = {};
-			stRTVHeapDesc.NumDescriptors	= g_nFrameBackBufCount;
-			stRTVHeapDesc.Type				= D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-			stRTVHeapDesc.Flags				= D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+			stRTVHeapDesc.NumDescriptors = g_nFrameBackBufCount;
+			stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 			for (int i = 0; i < c_nMaxGPUCnt; i++)
 			{
@@ -663,10 +665,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				GRS_SetD3D12DebugNameIndexed(stGPU[i].m_pIRTVHeap.Get(), _T("m_pIRTVHeap"), i);
 			}
 
-			//Off-Line Render Target View
-			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateDescriptorHeap(
-				&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVOffLine)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRTVOffLine);
+			for (int i = 0; i < c_nPostPassCnt; i++)
+			{
+				//Off-Line Render Target View
+				GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateDescriptorHeap(
+					&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVOffLine[i])));
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRTVOffLine[i]);
+
+			}
 
 			//创建渲染目标描述符，以及主显卡的渲染目标资源
 			CD3DX12_CLEAR_VALUE   stClearValue(stSwapChainDesc.Format, v4ClearColor);
@@ -681,47 +687,31 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				D3D12_TEXTURE_LAYOUT_UNKNOWN, 0u);
 
 			WCHAR pszDebugName[MAX_PATH] = {};
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stHRTVOffLine(pIRTVOffLine->GetCPUDescriptorHandleForHeapStart());
 
-			for ( UINT i = 0; i < c_nMaxGPUCnt; i++ )
+			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandleMainGPU(stGPU[c_nMainGPU].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandleSecondGPU(stGPU[c_nSecondGPU].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+			for (UINT j = 0; j < g_nFrameBackBufCount; j++)
 			{
-				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(stGPU[i].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+				//在辅助显卡上输出
+				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(j, IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pIRTRes[j])));
+				//在主显卡上创建渲染目标纹理资源
+				GRS_THROW_IF_FAILED(stGPU[c_nMainGPU].m_pID3D12Device4->CreateCommittedResource(
+					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+					D3D12_HEAP_FLAG_NONE,
+					&stRenderTargetDesc,
+					D3D12_RESOURCE_STATE_COMMON,
+					&stClearValue,
+					IID_PPV_ARGS(&stGPU[c_nMainGPU].m_pIRTRes[j])));
 
-				for (UINT j = 0; j < g_nFrameBackBufCount; j++)
-				{
-					if ( i == c_nSecondGPU )
-					{//在辅助显卡上输出
-						GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(j, IID_PPV_ARGS(&stGPU[i].m_pIRTRes[j])));
+				stGPU[c_nMainGPU].m_pID3D12Device4->CreateRenderTargetView(stGPU[c_nMainGPU].m_pIRTRes[j].Get(), nullptr, stRTVHandleMainGPU);
+				stRTVHandleMainGPU.Offset(1, stGPU[c_nMainGPU].m_nRTVDescriptorSize);
 
-						// Create Second Adapter Off-Line Render Target
-						GRS_THROW_IF_FAILED(stGPU[i].m_pID3D12Device4->CreateCommittedResource(
-							&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-							D3D12_HEAP_FLAG_NONE,
-							&stRenderTargetDesc,
-							D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-							&stClearValue,
-							IID_PPV_ARGS(&pIOffLineRTRes[j])));
+				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRenderTargetView(stGPU[c_nSecondGPU].m_pIRTRes[j].Get(), nullptr, stRTVHandleSecondGPU);
+				stRTVHandleSecondGPU.Offset(1, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
+			}
 
-						GRS_SET_D3D12_DEBUGNAME_INDEXED_COMPTR(pIOffLineRTRes, j);
-						// Off-Line Render Target View
-						stGPU[i].m_pID3D12Device4->CreateRenderTargetView(pIOffLineRTRes[j].Get(), nullptr, stHRTVOffLine);
-						stHRTVOffLine.Offset(1, stGPU[i].m_nRTVDescriptorSize);
-					}
-					else
-					{//在主显卡上创建渲染目标纹理资源
-						GRS_THROW_IF_FAILED(stGPU[i].m_pID3D12Device4->CreateCommittedResource(
-							&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-							D3D12_HEAP_FLAG_NONE,
-							&stRenderTargetDesc,
-							D3D12_RESOURCE_STATE_COMMON,
-							&stClearValue,
-							IID_PPV_ARGS(&stGPU[i].m_pIRTRes[j])));
-					}
-
-					stGPU[i].m_pID3D12Device4->CreateRenderTargetView(stGPU[i].m_pIRTRes[j].Get(), nullptr, stRTVHandle);
-					stRTVHandle.Offset(1, stGPU[i].m_nRTVDescriptorSize);
-				}
-
+			for (int i = 0; i < c_nMaxGPUCnt; i++)
+			{
 				// 创建每个显卡上的深度蜡板缓冲区
 				D3D12_CLEAR_VALUE stDepthOptimizedClearValue = {};
 				stDepthOptimizedClearValue.Format = emDSFormat;
@@ -748,7 +738,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, IID_PPV_ARGS(&stGPU[i].m_pIDSRes)
 				));
 				GRS_SetD3D12DebugNameIndexed(stGPU[i].m_pIDSRes.Get(), _T("m_pIDSRes"), i);
-				
+
 				// Create DSV Heap
 				D3D12_DESCRIPTOR_HEAP_DESC stDSVHeapDesc = {};
 				stDSVHeapDesc.NumDescriptors = 1;
@@ -767,7 +757,29 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, &stDepthStencilDesc
 					, stGPU[i].m_pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
 			}
-	
+
+			for (UINT k = 0; k < c_nPostPassCnt; k++)
+			{
+				CD3DX12_CPU_DESCRIPTOR_HANDLE stHRTVOffLine(pIRTVOffLine[k]->GetCPUDescriptorHandleForHeapStart());
+				for (int i = 0; i < g_nFrameBackBufCount; i++)
+				{
+					// Create Second Adapter Off-Line Render Target
+					GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateCommittedResource(
+						&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+						D3D12_HEAP_FLAG_NONE,
+						&stRenderTargetDesc,
+						D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+						&stClearValue,
+						IID_PPV_ARGS(&pIOffLineRTRes[k][i])));
+
+					GRS_SET_D3D12_DEBUGNAME_INDEXED_COMPTR(pIOffLineRTRes[k], i);
+					// Off-Line Render Target View
+					stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRenderTargetView(pIOffLineRTRes[k][i].Get(), nullptr, stHRTVOffLine);
+					stHRTVOffLine.Offset(1, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
+				}
+			}
+
+
 			// 创建跨适配器的共享资源堆
 			{
 				D3D12_FEATURE_DATA_D3D12_OPTIONS stOptions = {};
@@ -783,7 +795,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				UINT64 n64szTexture = 0;
 				D3D12_RESOURCE_DESC stCrossAdapterResDesc = {};
 
-				if ( bCrossAdapterTextureSupport )
+				if (bCrossAdapterTextureSupport)
 				{
 					::OutputDebugString(_T("\n辅助显卡直接支持跨显卡共享纹理!\n"));
 					// 如果支持那么直接创建跨显卡纹理类型的资源堆
@@ -792,7 +804,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					stCrossAdapterResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
 					stCrossAdapterResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-					D3D12_RESOURCE_ALLOCATION_INFO stTextureInfo 
+					D3D12_RESOURCE_ALLOCATION_INFO stTextureInfo
 						= stGPU[c_nMainGPU].m_pID3D12Device4->GetResourceAllocationInfo(
 							0, 1, &stCrossAdapterResDesc);
 					n64szTexture = stTextureInfo.SizeInBytes;
@@ -807,7 +819,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					//普通资源字节尺寸大小要64k边界对齐
 					n64szTexture = GRS_UPPER(stResLayout.Footprint.RowPitch * stResLayout.Footprint.Height
 						, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
-					stCrossAdapterResDesc 
+					stCrossAdapterResDesc
 						= CD3DX12_RESOURCE_DESC::Buffer(n64szTexture, D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER);
 				}
 
@@ -819,7 +831,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					n64szTexture * g_nFrameBackBufCount,
 					D3D12_HEAP_TYPE_DEFAULT,
 					0,
-					D3D12_HEAP_FLAG_SHARED | D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER );
+					D3D12_HEAP_FLAG_SHARED | D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER);
 
 				GRS_THROW_IF_FAILED(stGPU[c_nMainGPU].m_pID3D12Device4->CreateHeap(&stCrossHeapDesc
 					, IID_PPV_ARGS(&stGPU[c_nMainGPU].m_pICrossAdapterHeap)));
@@ -860,7 +872,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						nullptr,
 						IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pICrossAdapterResPerFrame[i])));
 
-					if ( !bCrossAdapterTextureSupport )
+					if (!bCrossAdapterTextureSupport)
 					{
 						// 如果共享资源仅能共享Buffer形式的资源，那么就在第二个显卡上创建对应的纹理形式的资源
 						// 并且将主显卡共享过来的Buffer里的渲染结果纹理，复制到第二个显卡的纹理形式的资源上
@@ -878,128 +890,128 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		//8、创建根签名
-		{{
-			//First Pass Root Signature
-			//这个例子中，第一遍渲染由主显卡完成，所有物体使用相同的根签名，因为渲染过程中需要的参数是一样的
-			D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
-			//检测是否支持V1.1版本的根签名
-			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+		{ {
+				//First Pass Root Signature
+				//这个例子中，第一遍渲染由主显卡完成，所有物体使用相同的根签名，因为渲染过程中需要的参数是一样的
+				D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
+				//检测是否支持V1.1版本的根签名
+				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
-			if (FAILED(stGPU[c_nMainGPU].m_pID3D12Device4->CheckFeatureSupport(
-				D3D12_FEATURE_ROOT_SIGNATURE
-				, &stFeatureData
-				, sizeof(stFeatureData))))
-			{
-				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
-			}
+				if (FAILED(stGPU[c_nMainGPU].m_pID3D12Device4->CheckFeatureSupport(
+					D3D12_FEATURE_ROOT_SIGNATURE
+					, &stFeatureData
+					, sizeof(stFeatureData))))
+				{
+					stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+				}
 
-			CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[3];
-			stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0); //1 Const Buffer View
-			stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); //1 Texture View
-			stDSPRanges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);// 1 Sampler
+				CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[3];
+				stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0); //1 Const Buffer View
+				stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); //1 Texture View
+				stDSPRanges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);// 1 Sampler
 
-			CD3DX12_ROOT_PARAMETER1 stRootParameters[3];
-			stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_ALL); //CBV是所有Shader可见
-			stRootParameters[1].InitAsDescriptorTable(1, &stDSPRanges[1], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
-			stRootParameters[2].InitAsDescriptorTable(1, &stDSPRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
+				CD3DX12_ROOT_PARAMETER1 stRootParameters[3];
+				stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_ALL); //CBV是所有Shader可见
+				stRootParameters[1].InitAsDescriptorTable(1, &stDSPRanges[1], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
+				stRootParameters[2].InitAsDescriptorTable(1, &stDSPRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
 
-			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
-			stRootSignatureDesc.Init_1_1(_countof(stRootParameters)
-				, stRootParameters
-				, 0
-				, nullptr
-				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+				CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
+				stRootSignatureDesc.Init_1_1(_countof(stRootParameters)
+					, stRootParameters
+					, 0
+					, nullptr
+					, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-			ComPtr<ID3DBlob> pISignatureBlob;
-			ComPtr<ID3DBlob> pIErrorBlob;
+				ComPtr<ID3DBlob> pISignatureBlob;
+				ComPtr<ID3DBlob> pIErrorBlob;
 
-			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
-				, stFeatureData.HighestVersion
-				, &pISignatureBlob
-				, &pIErrorBlob));
+				GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
+					, stFeatureData.HighestVersion
+					, &pISignatureBlob
+					, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(
-				stGPU[c_nMainGPU].m_pID3D12Device4->CreateRootSignature(0
-				, pISignatureBlob->GetBufferPointer()
-				, pISignatureBlob->GetBufferSize()
-				, IID_PPV_ARGS(&stGPU[c_nMainGPU].m_pIRS)));
+				GRS_THROW_IF_FAILED(
+					stGPU[c_nMainGPU].m_pID3D12Device4->CreateRootSignature(0
+						, pISignatureBlob->GetBufferPointer()
+						, pISignatureBlob->GetBufferSize()
+						, IID_PPV_ARGS(&stGPU[c_nMainGPU].m_pIRS)));
 
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPU[c_nMainGPU].m_pIRS);
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPU[c_nMainGPU].m_pIRS);
 
-			//Second Pass Root Signature
-			//创建渲染Quad的根签名对象，注意这个根签名在辅助显卡上用
-			// 因为我们把所有的渲染目标纹理的SRV都创建在了一个SRV堆的连续位置上，实际只使用一个，所以要和Noise Texture分离一下
-			CD3DX12_DESCRIPTOR_RANGE1 stDRQuad[4];
-			stDRQuad[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);	// 1 Const Buffer
-			stDRQuad[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);    // 1 Texture 
-			stDRQuad[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);    // 1 Noise Texture 
-			stDRQuad[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);// 1 Sampler
+				//Second Pass Root Signature
+				//创建渲染Quad的根签名对象，注意这个根签名在辅助显卡上用
+				// 因为我们把所有的渲染目标纹理的SRV都创建在了一个SRV堆的连续位置上，实际只使用一个，所以要和Noise Texture分离一下
+				CD3DX12_DESCRIPTOR_RANGE1 stDRQuad[4];
+				stDRQuad[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);	// 1 Const Buffer
+				stDRQuad[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);    // 1 Texture 
+				stDRQuad[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);    // 1 Noise Texture 
+				stDRQuad[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);// 1 Sampler
 
-			//后处理其实就是图像处理，所以资源仅设定Pixel Shader可见
-			CD3DX12_ROOT_PARAMETER1 stRPQuad[4];
-			stRPQuad[0].InitAsDescriptorTable(1, &stDRQuad[0], D3D12_SHADER_VISIBILITY_PIXEL);//CBV仅PS可见
-			stRPQuad[1].InitAsDescriptorTable(1, &stDRQuad[1], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
-			stRPQuad[2].InitAsDescriptorTable(1, &stDRQuad[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
-			stRPQuad[3].InitAsDescriptorTable(1, &stDRQuad[3], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
+				//后处理其实就是图像处理，所以资源仅设定Pixel Shader可见
+				CD3DX12_ROOT_PARAMETER1 stRPQuad[4];
+				stRPQuad[0].InitAsDescriptorTable(1, &stDRQuad[0], D3D12_SHADER_VISIBILITY_PIXEL);//CBV仅PS可见
+				stRPQuad[1].InitAsDescriptorTable(1, &stDRQuad[1], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
+				stRPQuad[2].InitAsDescriptorTable(1, &stDRQuad[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
+				stRPQuad[3].InitAsDescriptorTable(1, &stDRQuad[3], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
 
-			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRSQuadDesc;
-			stRSQuadDesc.Init_1_1(_countof(stRPQuad)
-				, stRPQuad
-				, 0
-				, nullptr
-				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+				CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRSQuadDesc;
+				stRSQuadDesc.Init_1_1(_countof(stRPQuad)
+					, stRPQuad
+					, 0
+					, nullptr
+					, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-			pISignatureBlob.Reset();
-			pIErrorBlob.Reset();
+				pISignatureBlob.Reset();
+				pIErrorBlob.Reset();
 
-			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRSQuadDesc
-				, stFeatureData.HighestVersion
-				, &pISignatureBlob
-				, &pIErrorBlob));
+				GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRSQuadDesc
+					, stFeatureData.HighestVersion
+					, &pISignatureBlob
+					, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(
-				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRootSignature(0
-				, pISignatureBlob->GetBufferPointer()
-				, pISignatureBlob->GetBufferSize()
-				, IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pIRS)));
+				GRS_THROW_IF_FAILED(
+					stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRootSignature(0
+						, pISignatureBlob->GetBufferPointer()
+						, pISignatureBlob->GetBufferSize()
+						, IID_PPV_ARGS(&stGPU[c_nSecondGPU].m_pIRS)));
 
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPU[c_nSecondGPU].m_pIRS);
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPU[c_nSecondGPU].m_pIRS);
 
-			//-----------------------------------------------------------------------------------------------------
-			// Create Third Pass Root Signature
-			CD3DX12_DESCRIPTOR_RANGE1 stDRThridPass[2];
-			stDRThridPass[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-			stDRThridPass[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
+				//-----------------------------------------------------------------------------------------------------
+				// Create Third Pass Root Signature
+				CD3DX12_DESCRIPTOR_RANGE1 stDRThridPass[2];
+				stDRThridPass[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+				stDRThridPass[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
 
-			CD3DX12_ROOT_PARAMETER1 stRPThirdPass[2];
-			stRPThirdPass[0].InitAsDescriptorTable(1, &stDRThridPass[0], D3D12_SHADER_VISIBILITY_PIXEL);	//CBV所有Shader可见
-			stRPThirdPass[1].InitAsDescriptorTable(1, &stDRThridPass[1], D3D12_SHADER_VISIBILITY_PIXEL);	//SRV仅PS可见
+				CD3DX12_ROOT_PARAMETER1 stRPThirdPass[2];
+				stRPThirdPass[0].InitAsDescriptorTable(1, &stDRThridPass[0], D3D12_SHADER_VISIBILITY_PIXEL);	//CBV所有Shader可见
+				stRPThirdPass[1].InitAsDescriptorTable(1, &stDRThridPass[1], D3D12_SHADER_VISIBILITY_PIXEL);	//SRV仅PS可见
 
-			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRSThirdPass;
-			stRSThirdPass.Init_1_1(_countof(stRPThirdPass)
-				, stRPThirdPass
-				, 0
-				, nullptr
-				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+				CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRSThirdPass;
+				stRSThirdPass.Init_1_1(_countof(stRPThirdPass)
+					, stRPThirdPass
+					, 0
+					, nullptr
+					, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-			pISignatureBlob.Reset();
-			pIErrorBlob.Reset();
+				pISignatureBlob.Reset();
+				pIErrorBlob.Reset();
 
-			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRSThirdPass
-				, stFeatureData.HighestVersion
-				, &pISignatureBlob
-				, &pIErrorBlob));
+				GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRSThirdPass
+					, stFeatureData.HighestVersion
+					, &pISignatureBlob
+					, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRootSignature(0
-				, pISignatureBlob->GetBufferPointer()
-				, pISignatureBlob->GetBufferSize()
-				, IID_PPV_ARGS(&pIRSThirdPass)));
+				GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateRootSignature(0
+					, pISignatureBlob->GetBufferPointer()
+					, pISignatureBlob->GetBufferSize()
+					, IID_PPV_ARGS(&pIRSPostPass)));
 
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRSThirdPass);
-		}}
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRSPostPass);
+			}}
 
 		//9、编译Shader创建渲染管线状态对象
-		{
+		{{
 #if defined(_DEBUG)
 			// Enable better shader debugging with the graphics debugging tools.
 			UINT nShaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -1084,7 +1096,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			// Second Pass Pipeline State Object
 			// 用于渲染单位矩形的管道状态对象，在本例中是后处理
-			StringCchPrintf(pszShaderFileName, MAX_PATH , _T("%s11-MultiThreadAndAdapter\\Shader\\11-QuadVS.hlsl"), g_pszAppPath);
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s11-MultiThreadAndAdapter\\Shader\\11-QuadVS.hlsl"), g_pszAppPath);
 
 			pIVSCode.Reset();
 			pIPSCode.Reset();
@@ -1148,17 +1160,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPU[c_nSecondGPU].m_pIPSO);
 
 			//---------------------------------------------------------------------------------------------------
-			// Create Third Pass PSO
+			// Create Gaussian blur in the vertical direction PSO
 			pIPSCode.Reset();
 			pIErrMsg.Reset();
 
-			StringCchPrintf(pszShaderFileName, MAX_PATH
+			StringCchPrintf(pszShaderFileName
+				, MAX_PATH
 				, _T("%s11-MultiThreadAndAdapter\\Shader\\11-GaussianBlurPS.hlsl")
 				, g_pszAppPath);
 
-			//第三趟渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
+			//后处理渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
 			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-				, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
+				, "PSSimpleBlurV", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
 			if (FAILED(hr))
 			{
 				if (nullptr != pIErrMsg)
@@ -1172,7 +1185,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 创建 graphics pipeline state object (PSO)对象
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSOThirdPassDesc = {};
 			stPSOThirdPassDesc.InputLayout = { stIALayoutQuad, _countof(stIALayoutQuad) };
-			stPSOThirdPassDesc.pRootSignature = pIRSThirdPass.Get();
+			stPSOThirdPassDesc.pRootSignature = pIRSPostPass.Get();
 			stPSOThirdPassDesc.VS = CD3DX12_SHADER_BYTECODE(pIVSCode.Get());
 			stPSOThirdPassDesc.PS = CD3DX12_SHADER_BYTECODE(pIPSCode.Get());
 			stPSOThirdPassDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -1188,17 +1201,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(
 				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(
 					&stPSOThirdPassDesc
-					, IID_PPV_ARGS(&pIPSOThirdPass)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOThirdPass);
+					, IID_PPV_ARGS(&pIPSOPostPass[c_nPostPass0])));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOPostPass[c_nPostPass0]);
 
-			// DoNothing PS PSO
+			//  Create Gaussian blur in the horizontal direction PSO
 			pIPSCode.Reset();
 			pIErrMsg.Reset();
 
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s11-MultiThreadAndAdapter\\Shader\\11-DoNothingPS.hlsl"),g_pszAppPath);
-
-			//第三趟渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
-			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
+			//后处理渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
+			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+				, "PSSimpleBlurU", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
 			if (FAILED(hr))
 			{
 				if (nullptr != pIErrMsg)
@@ -1210,35 +1222,42 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 
 			stPSOThirdPassDesc.PS = CD3DX12_SHADER_BYTECODE(pIPSCode.Get());
-			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(&stPSOThirdPassDesc, IID_PPV_ARGS(&pIPSODoNothing)));
+
+			GRS_THROW_IF_FAILED(
+				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(
+					&stPSOThirdPassDesc
+					, IID_PPV_ARGS(&pIPSOPostPass[c_nPostPass1])));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOPostPass[c_nPostPass1]);
+			//---------------------------------------------------------------------------------------------------
+
+			// DoNothing PS PSO
+			pIPSCode.Reset();
+			pIErrMsg.Reset();
+
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s11-MultiThreadAndAdapter\\Shader\\11-DoNothingPS.hlsl"), g_pszAppPath);
+
+			//后处理渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
+			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+				, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
+			if (FAILED(hr))
+			{
+				if (nullptr != pIErrMsg)
+				{
+					StringCchPrintfA(pszErrMsg, MAX_PATH, "\n%s\n", (CHAR*)pIErrMsg->GetBufferPointer());
+					::OutputDebugStringA(pszErrMsg);
+				}
+				throw CGRSCOMException(hr);
+			}
+
+			stPSOThirdPassDesc.PS = CD3DX12_SHADER_BYTECODE(pIPSCode.Get());
+			GRS_THROW_IF_FAILED(
+				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(
+					&stPSOThirdPassDesc, IID_PPV_ARGS(&pIPSODoNothing)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSODoNothing);
-
-			// DoNothing PS PSO
-			pIPSCode.Reset();
-			pIErrMsg.Reset();
-
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s11-MultiThreadAndAdapter\\Shader\\blurShaders_MS.hlsl"),g_pszAppPath);
-
-			//第三趟渲染，只编译PS就可以了，VS就用之前的QuadVS即可，都是后处理主要玩PS
-			hr = D3DCompileFromFile(pszShaderFileName, nullptr, nullptr, "PSSimpleBlur", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, &pIErrMsg);
-			if (FAILED(hr))
-			{
-				if (nullptr != pIErrMsg)
-				{
-					StringCchPrintfA(pszErrMsg, MAX_PATH, "\n%s\n", (CHAR*)pIErrMsg->GetBufferPointer());
-					::OutputDebugStringA(pszErrMsg);
-				}
-				throw CGRSCOMException(hr);
-			}
-
-			stPSOThirdPassDesc.PS = CD3DX12_SHADER_BYTECODE(pIPSCode.Get());
-
-			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pID3D12Device4->CreateGraphicsPipelineState(&stPSOThirdPassDesc, IID_PPV_ARGS(&pIPSOBothwayBlur)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPSOBothwayBlur);
-		}
+		}}
 
 		//10、准备参数并启动多个渲染线程
-		{
+		{{
 			USES_CONVERSION;
 			// 球体个性参数
 			StringCchPrintf(g_stThread[g_nThdSphere].m_pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Earth_512.dds"), g_pszAppPath);
@@ -1265,7 +1284,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				GRS_THROW_IF_FAILED(
 					stGPU[c_nMainGPU].m_pID3D12Device4->CreateCommandAllocator(
 						D3D12_COMMAND_LIST_TYPE_DIRECT
-					, IID_PPV_ARGS(&g_stThread[i].m_pICMDAlloc)));
+						, IID_PPV_ARGS(&g_stThread[i].m_pICMDAlloc)));
 				GRS_SetD3D12DebugNameIndexed(g_stThread[i].m_pICMDAlloc, _T("pIThreadCmdAlloc"), i);
 
 				GRS_THROW_IF_FAILED(
@@ -1276,15 +1295,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						, IID_PPV_ARGS(&g_stThread[i].m_pICMDList)));
 				GRS_SetD3D12DebugNameIndexed(g_stThread[i].m_pICMDList, _T("pIThreadCmdList"), i);
 
-				g_stThread[i].m_dwMainThreadID		= ::GetCurrentThreadId();
-				g_stThread[i].m_hMainThread			= ::GetCurrentThread();
-				g_stThread[i].m_hEventRun			= ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
-				g_stThread[i].m_hEventRenderOver	= ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
-				g_stThread[i].m_pID3D12Device4		= stGPU[c_nMainGPU].m_pID3D12Device4.Get();
-				g_stThread[i].m_pIRTVHeap			= stGPU[c_nMainGPU].m_pIRTVHeap.Get();
-				g_stThread[i].m_pIDSVHeap			= stGPU[c_nMainGPU].m_pIDSVHeap.Get();
-				g_stThread[i].m_pIRS				= stGPU[c_nMainGPU].m_pIRS.Get();
-				g_stThread[i].m_pIPSO				= stGPU[c_nMainGPU].m_pIPSO.Get();
+				g_stThread[i].m_dwMainThreadID = ::GetCurrentThreadId();
+				g_stThread[i].m_hMainThread = ::GetCurrentThread();
+				g_stThread[i].m_hEventRun = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+				g_stThread[i].m_hEventRenderOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+				g_stThread[i].m_pID3D12Device4 = stGPU[c_nMainGPU].m_pID3D12Device4.Get();
+				g_stThread[i].m_pIRTVHeap = stGPU[c_nMainGPU].m_pIRTVHeap.Get();
+				g_stThread[i].m_pIDSVHeap = stGPU[c_nMainGPU].m_pIDSVHeap.Get();
+				g_stThread[i].m_pIRS = stGPU[c_nMainGPU].m_pIRS.Get();
+				g_stThread[i].m_pIPSO = stGPU[c_nMainGPU].m_pIPSO.Get();
 
 				arHWaited.Add(g_stThread[i].m_hEventRenderOver); //添加到被等待队列里
 
@@ -1308,10 +1327,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				::ResumeThread(g_stThread[i].m_hThisThread);
 			}
-		}
+		}}
 
 		//11、加载DDS噪声纹理，注意用于后处理，所以加载到第二个显卡上
-		{ {
+		{{
 				TCHAR pszNoiseTexture[MAX_PATH] = {};
 				StringCchPrintf(pszNoiseTexture, MAX_PATH, _T("%sMesh\\Noise1.dds"), g_pszAppPath);
 				std::unique_ptr<uint8_t[]>			pbDDSData;
@@ -1362,8 +1381,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						, D3D12_RESOURCE_STATE_COPY_DEST
 						, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
-
-			}}
+		}}
 		//12、建辅助显卡用来渲染或后处理用的矩形框
 		{
 			ST_GRS_VERTEX_QUAD stVertexQuad[] =
@@ -1378,22 +1396,22 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			GRS_THROW_IF_FAILED(
 				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-				D3D12_HEAP_FLAG_NONE,
-				&CD3DX12_RESOURCE_DESC::Buffer(nszVBQuad),
-				D3D12_RESOURCE_STATE_COPY_DEST,
-				nullptr,
-				IID_PPV_ARGS(&pIVBQuad)));
+					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+					D3D12_HEAP_FLAG_NONE,
+					&CD3DX12_RESOURCE_DESC::Buffer(nszVBQuad),
+					D3D12_RESOURCE_STATE_COPY_DEST,
+					nullptr,
+					IID_PPV_ARGS(&pIVBQuad)));
 
 			// 这次我们特意演示了如何将顶点缓冲上传到默认堆上的方式，与纹理上传默认堆实际是一样的
 			GRS_THROW_IF_FAILED(
 				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-				D3D12_HEAP_FLAG_NONE,
-				&CD3DX12_RESOURCE_DESC::Buffer(nszVBQuad),
-				D3D12_RESOURCE_STATE_GENERIC_READ,
-				nullptr,
-				IID_PPV_ARGS(&pIVBQuadUpload)));
+					&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+					D3D12_HEAP_FLAG_NONE,
+					&CD3DX12_RESOURCE_DESC::Buffer(nszVBQuad),
+					D3D12_RESOURCE_STATE_GENERIC_READ,
+					nullptr,
+					IID_PPV_ARGS(&pIVBQuadUpload)));
 
 			D3D12_SUBRESOURCE_DATA stVBDataQuad = {};
 			stVBDataQuad.pData = reinterpret_cast<UINT8*>(stVertexQuad);
@@ -1412,8 +1430,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(
 				1
 				, &CD3DX12_RESOURCE_BARRIER::Transition(pIVBQuad.Get()
-				, D3D12_RESOURCE_STATE_COPY_DEST
-				, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+					, D3D12_RESOURCE_STATE_COPY_DEST
+					, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
 			pstVBVQuad.BufferLocation = pIVBQuad->GetGPUVirtualAddress();
 			pstVBVQuad.StrideInBytes = sizeof(ST_GRS_VERTEX_QUAD);
@@ -1426,8 +1444,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			n64CurrentFenceValue = n64FenceValue;
 			GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pICMDQueue->Signal(
-					stGPU[c_nSecondGPU].m_pIFence.Get()
-					, n64CurrentFenceValue));
+				stGPU[c_nSecondGPU].m_pIFence.Get()
+				, n64CurrentFenceValue));
 
 			n64FenceValue++;
 			if (stGPU[c_nSecondGPU].m_pIFence->GetCompletedValue() < n64CurrentFenceValue)
@@ -1463,14 +1481,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE stSrvHandle(
 				stGPU[c_nSecondGPU].m_pISRVHeap->GetCPUDescriptorHandleForHeapStart()
-				);
+			);
 
 			// Create Third Pass SRV Heap
-			stDescriptorHeapDesc.NumDescriptors = g_nFrameBackBufCount;
-			GRS_THROW_IF_FAILED(
-				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateDescriptorHeap(
-					&stDescriptorHeapDesc, IID_PPV_ARGS(&pISRVHeapThirdPass)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pISRVHeapThirdPass);
+			stDescriptorHeapDesc.NumDescriptors = g_nFrameBackBufCount;  
+			//为每一个渲染目标纹理创建一个SRV，这样只需要设置时便宜到对应SRV即可
+			for (int i = 0; i < c_nPostPassCnt; i++)
+			{
+				GRS_THROW_IF_FAILED(
+					stGPU[c_nSecondGPU].m_pID3D12Device4->CreateDescriptorHeap(
+						&stDescriptorHeapDesc, IID_PPV_ARGS(&pISRVHeapPostPass[i])));
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(pISRVHeapPostPass[i]);
+			}
 
 			//-------------------------------------------------------------------------------------------------------
 			//Create Cross Adapter Texture SRV
@@ -1479,7 +1501,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSRVDesc.Format = emRTFormat;
 			stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			stSRVDesc.Texture2D.MipLevels = 1;
-			
+
 			for (int i = 0; i < g_nFrameBackBufCount; i++)
 			{
 				if (!bCrossAdapterTextureSupport)
@@ -1520,14 +1542,17 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//-------------------------------------------------------------------------------------------------------
 			// Create Third Pass SRV
 			stSRVDesc.Format = emRTFormat;
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stThirdPassSrvHandle(pISRVHeapThirdPass->GetCPUDescriptorHandleForHeapStart());
-			for (int i = 0; i < g_nFrameBackBufCount; i++)
+			for (int k = 0; k < c_nPostPassCnt; k++)
 			{
-				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateShaderResourceView(
-					pIOffLineRTRes[i].Get()
-					, &stSRVDesc
-					, stThirdPassSrvHandle);
-				stThirdPassSrvHandle.Offset(1, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
+				CD3DX12_CPU_DESCRIPTOR_HANDLE stThirdPassSrvHandle(pISRVHeapPostPass[k]->GetCPUDescriptorHandleForHeapStart());
+				for (int i = 0; i < g_nFrameBackBufCount; i++)
+				{
+					stGPU[c_nSecondGPU].m_pID3D12Device4->CreateShaderResourceView(
+						pIOffLineRTRes[k][i].Get()
+						, &stSRVDesc
+						, stThirdPassSrvHandle);
+					stThirdPassSrvHandle.Offset(1, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
+				}
 			}
 			//-------------------------------------------------------------------------------------------------------
 
@@ -1559,13 +1584,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// Create Third Pass Sample Heap
 			GRS_THROW_IF_FAILED(
 				stGPU[c_nSecondGPU].m_pID3D12Device4->CreateDescriptorHeap(
-					&stDescriptorHeapDesc, IID_PPV_ARGS(&pISampleHeapThirdPass)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pISampleHeapThirdPass);
+					&stDescriptorHeapDesc, IID_PPV_ARGS(&pISampleHeapPostPass)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pISampleHeapPostPass);
 
 			// Create Third Pass Sample
 			stGPU[c_nSecondGPU].m_pID3D12Device4->CreateSampler(
 				&stSamplerDesc
-				, pISampleHeapThirdPass->GetCPUDescriptorHandleForHeapStart());
+				, pISampleHeapPostPass->GetCPUDescriptorHandleForHeapStart());
 
 
 		}
@@ -1577,7 +1602,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		UINT nStates = 0; //初始状态为0
 		DWORD dwRet = 0;
 		CAtlArray<ID3D12CommandList*> arCmdList;
-
+		CAtlArray<ID3D12DescriptorHeap*> arDesHeaps;
 		BOOL bExit = FALSE;
 
 		ULONGLONG n64tmFrameStart = ::GetTickCount64();
@@ -1589,7 +1614,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		GRS_THROW_IF_FAILED(pICMDListBefore->Close());
 		GRS_THROW_IF_FAILED(pICMDListLater->Close());
 		GRS_THROW_IF_FAILED(pICMDListCopy->Close());
-		GRS_THROW_IF_FAILED(pICMDListThirdPass->Close());
+		GRS_THROW_IF_FAILED(pICMDListPostPass->Close());
 
 		SetTimer(hWnd, WM_USER + 100, 1, nullptr); //这句为了保证MsgWaitForMultipleObjects 在 wait for all 为True时 能够及时返回
 
@@ -1600,13 +1625,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			dwRet = ::MsgWaitForMultipleObjects(static_cast<DWORD>(arHWaited.GetCount()), arHWaited.GetData(), TRUE, INFINITE, QS_ALLINPUT);
 			dwRet -= WAIT_OBJECT_0;
 
-			if ( 0 == dwRet )
+			if (0 == dwRet)
 			{//表示被等待的事件和消息都是有通知的状态了，先处理渲染，然后处理消息
 				switch (nStates)
 				{
 				case 0://状态0，表示等到各子线程加载资源完毕，此时执行一次命令列表完成各子线程要求的资源上传的第二个Copy命令
 				{// 该状态只会执行一次
-					
+
 					arCmdList.RemoveAll();
 					//执行各线程创建于主显卡的命令列表
 					arCmdList.Add(g_stThread[g_nThdSphere].m_pICMDList);
@@ -1725,7 +1750,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				break;
 				case 2:// 状态2 表示所有的渲染命令列表都记录完成了，开始后处理和执行命令列表
 				{
-					// First Pass
+					// 1 First Pass
 					{
 						pICMDListLater->ResourceBarrier(1
 							, &CD3DX12_RESOURCE_BARRIER::Transition(
@@ -1755,7 +1780,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						n64FenceValue++;
 					}
 
-					// Copy Render Target
+					// Copy Main GPU Render Target Texture To Cross Adapter Heap Resource 
 					// 记录主显卡的渲染结果复制到共享纹理资源中的命令列表
 					{
 						pICMDAllocCopy->Reset();
@@ -1772,6 +1797,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						{
 							// 如果适配器不支持跨适配器行主纹理，则将纹理复制为缓冲区，
 							// 以便可以显式地管理纹理行间距。使用呈现目标指定的内存布局将中间呈现目标复制到共享缓冲区中。
+							// 这相当于从Texture复制数据到Buffer中，也是一个很重要的技巧
 							D3D12_RESOURCE_DESC stRenderTargetDesc = stGPU[c_nMainGPU].m_pIRTRes[nCurrentFrameIndex]->GetDesc();
 							D3D12_PLACED_SUBRESOURCE_FOOTPRINT stRenderTargetLayout = {};
 
@@ -1795,8 +1821,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						// 通过调用命令队列的Wait命令实现同一个GPU上的各命令队列之间的等待同步 
 						GRS_THROW_IF_FAILED(pICmdQueueCopy->Wait(stGPU[c_nMainGPU].m_pIFence.Get(), n64CurrentFenceValue));
 
-						ID3D12CommandList* ppCopyCommandLists[] = { pICMDListCopy.Get() };
-						pICmdQueueCopy->ExecuteCommandLists(_countof(ppCopyCommandLists), ppCopyCommandLists);
+						arCmdList.RemoveAll();
+						arCmdList.Add(pICMDListCopy.Get());
+						pICmdQueueCopy->ExecuteCommandLists(static_cast<UINT>(arCmdList.GetCount()),arCmdList.GetData());
 
 						n64CurrentFenceValue = n64FenceValue;
 						// 复制命令的信号设置在共享的围栏对象上这样使得第二个显卡的命令队列可以在这个围栏上等待
@@ -1805,9 +1832,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						n64FenceValue++;
 					}
 
-					// Second Pass
+					// 2 Second Pass
 					// 开始辅助显卡的渲染，通常是后处理，比如运动模糊等，我们这里直接就是把画面绘制出来
 					{
+						// 使用辅助显卡上的主命令队列执行命令列表
+						// 辅助显卡上的主命令队列通过等待共享的围栏对象最终完成了与主显卡之间的同步
+						GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pICMDQueue->Wait(stGPU[c_nSecondGPU].m_pISharedFence.Get(), n64CurrentFenceValue));
+
 						stGPU[c_nSecondGPU].m_pICMDAlloc->Reset();
 						stGPU[c_nSecondGPU].m_pICMDList->Reset(stGPU[c_nSecondGPU].m_pICMDAlloc.Get(), stGPU[c_nSecondGPU].m_pIPSO.Get());
 
@@ -1821,7 +1852,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 							stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1, &stResBarrier);
 
-							D3D12_RESOURCE_DESC stSecondaryAdapterTexture 
+							D3D12_RESOURCE_DESC stSecondaryAdapterTexture
 								= pISecondaryAdapterTexutrePerFrame[nCurrentFrameIndex]->GetDesc();
 							D3D12_PLACED_SUBRESOURCE_FOOTPRINT stTextureLayout = {};
 
@@ -1850,25 +1881,49 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						// Second Pass 使用辅助显卡开始做后处理，也就是图像处理，这时各种滤镜就可以大显身手了
 						stGPU[c_nSecondGPU].m_pICMDList->SetGraphicsRootSignature(stGPU[c_nSecondGPU].m_pIRS.Get());
 						stGPU[c_nSecondGPU].m_pICMDList->SetPipelineState(stGPU[c_nSecondGPU].m_pIPSO.Get());
-						ID3D12DescriptorHeap* ppHeaps[] = { stGPU[c_nSecondGPU].m_pISRVHeap.Get(),stGPU[c_nSecondGPU].m_pISampleHeap.Get() };
-						stGPU[c_nSecondGPU].m_pICMDList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+						arDesHeaps.RemoveAll();
+						arDesHeaps.Add(stGPU[c_nSecondGPU].m_pISRVHeap.Get());
+						arDesHeaps.Add(stGPU[c_nSecondGPU].m_pISampleHeap.Get());
+						stGPU[c_nSecondGPU].m_pICMDList->SetDescriptorHeaps(static_cast<UINT>(arDesHeaps.GetCount()), arDesHeaps.GetData());
 
 						stGPU[c_nSecondGPU].m_pICMDList->RSSetViewports(1, &g_stViewPort);
 						stGPU[c_nSecondGPU].m_pICMDList->RSSetScissorRects(1, &g_stScissorRect);
 
-						D3D12_RESOURCE_BARRIER stRTSecondaryBarriers = CD3DX12_RESOURCE_BARRIER::Transition(
-							pIOffLineRTRes[nCurrentFrameIndex].Get()
-							, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-							, D3D12_RESOURCE_STATE_RENDER_TARGET);
+						if ( 0 == g_nUsePSID)
+						{//没有高斯模糊的情况，直接输出
+							D3D12_RESOURCE_BARRIER stRTBarriersFourthPass = CD3DX12_RESOURCE_BARRIER::Transition(
+								stGPU[c_nSecondGPU].m_pIRTRes[nCurrentFrameIndex].Get()
+								, D3D12_RESOURCE_STATE_PRESENT
+								, D3D12_RESOURCE_STATE_RENDER_TARGET);
+							stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1, &stRTBarriersFourthPass);
 
-						stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1, &stRTSecondaryBarriers);
+							CD3DX12_CPU_DESCRIPTOR_HANDLE stRTV4Handle(
+								stGPU[c_nSecondGPU].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
+								, nCurrentFrameIndex
+								, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
 
-						CD3DX12_CPU_DESCRIPTOR_HANDLE rtvSecondaryHandle(
-							pIRTVOffLine->GetCPUDescriptorHandleForHeapStart()
-							, nCurrentFrameIndex
-							, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
-						stGPU[c_nSecondGPU].m_pICMDList->OMSetRenderTargets(1, &rtvSecondaryHandle, false, nullptr);
-						stGPU[c_nSecondGPU].m_pICMDList->ClearRenderTargetView(rtvSecondaryHandle, v4ClearColor, 0, nullptr);
+							stGPU[c_nSecondGPU].m_pICMDList->OMSetRenderTargets(1, &stRTV4Handle, false, nullptr);
+							float f4ClearColor[] = { 1.0f,0.0f,1.0f,1.0f }; //故意使用不同的清除色，查看是否有“露底”的问题
+							stGPU[c_nSecondGPU].m_pICMDList->ClearRenderTargetView(stRTV4Handle, f4ClearColor, 0, nullptr);
+						}
+						else
+						{
+							D3D12_RESOURCE_BARRIER stRTBarriersSecondPass = CD3DX12_RESOURCE_BARRIER::Transition(
+								pIOffLineRTRes[c_nPostPass0][nCurrentFrameIndex].Get()
+								, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+								, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+							stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1, &stRTBarriersSecondPass);
+
+							CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHadnleSecondPass(
+								pIRTVOffLine[c_nPostPass0]->GetCPUDescriptorHandleForHeapStart()
+								, nCurrentFrameIndex
+								, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
+							stGPU[c_nSecondGPU].m_pICMDList->OMSetRenderTargets(1, &stRTVHadnleSecondPass, false, nullptr);
+							stGPU[c_nSecondGPU].m_pICMDList->ClearRenderTargetView(stRTVHadnleSecondPass, v4ClearColor, 0, nullptr);
+						}
+
 
 						// CBV
 						CD3DX12_GPU_DESCRIPTOR_HANDLE stCBVGPUHandle(
@@ -1883,9 +1938,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 							stGPU[c_nSecondGPU].m_pISRVHeap->GetGPUDescriptorHandleForHeapStart()
 							, nCurrentFrameIndex
 							, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
-						
-						stGPU[c_nSecondGPU].m_pICMDList->SetGraphicsRootDescriptorTable(1 , stSRVGPUHandle);
-						
+
+						stGPU[c_nSecondGPU].m_pICMDList->SetGraphicsRootDescriptorTable(1, stSRVGPUHandle);
+
 						// Noise Texture SRV
 						CD3DX12_GPU_DESCRIPTOR_HANDLE stNoiseSRVGPUHandle(
 							stGPU[c_nSecondGPU].m_pISRVHeap->GetGPUDescriptorHandleForHeapStart()
@@ -1893,7 +1948,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 							, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
 
 						stGPU[c_nSecondGPU].m_pICMDList->SetGraphicsRootDescriptorTable(2, stNoiseSRVGPUHandle);
-				
+
 						stGPU[c_nSecondGPU].m_pICMDList->SetGraphicsRootDescriptorTable(3
 							, stGPU[c_nSecondGPU].m_pISampleHeap->GetGPUDescriptorHandleForHeapStart());
 
@@ -1903,93 +1958,150 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						// Draw Call!
 						stGPU[c_nSecondGPU].m_pICMDList->DrawInstanced(4, 1, 0, 0);
 
+						if (0 == g_nUsePSID)
+						{// 没有高斯模糊的情况，直接输出
+							stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1
+									, &CD3DX12_RESOURCE_BARRIER::Transition(
+										stGPU[c_nSecondGPU].m_pIRTRes[nCurrentFrameIndex].Get()
+										, D3D12_RESOURCE_STATE_RENDER_TARGET
+										, D3D12_RESOURCE_STATE_PRESENT));
+						}
+						else
+						{
+							// 第二个显卡上的第一遍渲染目标纹理做状态切换
+							stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1
+								, &CD3DX12_RESOURCE_BARRIER::Transition(
+									pIOffLineRTRes[c_nPostPass0][nCurrentFrameIndex].Get()
+									, D3D12_RESOURCE_STATE_RENDER_TARGET
+									, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+						}
+						GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pICMDList->Close());
+
+					}
+					// 调用高斯模糊效果（两遍 Post Pass）
+					if( 1 == g_nUsePSID )
+					{ 
+						pICMDAllocPostPass->Reset();
+						pICMDListPostPass->Reset(pICMDAllocPostPass.Get(), pIPSOPostPass[c_nPostPass0].Get());
+
+						//公共命令统一设置后，就不变了，因为后面两趟渲染是一个整体
+						pICMDListPostPass->SetGraphicsRootSignature(pIRSPostPass.Get());
+						pICMDListPostPass->RSSetViewports(1, &g_stViewPort);
+						pICMDListPostPass->RSSetScissorRects(1, &g_stScissorRect);
+						pICMDListPostPass->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+						pICMDListPostPass->IASetVertexBuffers(0, 1, &pstVBVQuad);
+
+						//-------------------------------------------------------------------------------------------------------
+						// 3 Thrid Pass
+						if (0 == g_nUsePSID)
+						{//没有 高斯模糊
+							pICMDListPostPass->SetPipelineState(pIPSODoNothing.Get());
+						}
+						else
+						{//使用高斯模糊
+							pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass0].Get());
+						}
+
+						arDesHeaps.RemoveAll();
+						arDesHeaps.Add(pISRVHeapPostPass[c_nPostPass0].Get());
+						arDesHeaps.Add(pISampleHeapPostPass.Get());
+
+						pICMDListPostPass->SetDescriptorHeaps(static_cast<UINT>(arDesHeaps.GetCount()),arDesHeaps.GetData());					
+
+						D3D12_RESOURCE_BARRIER stRTBarriersThirdPass = CD3DX12_RESOURCE_BARRIER::Transition(
+							pIOffLineRTRes[c_nPostPass1][nCurrentFrameIndex].Get()
+							, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+							, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+						pICMDListPostPass->ResourceBarrier(1, &stRTBarriersThirdPass);
+
+						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandleThirdPass(
+							pIRTVOffLine[c_nPostPass1]->GetCPUDescriptorHandleForHeapStart()
+							, nCurrentFrameIndex
+							, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
+						pICMDListPostPass->OMSetRenderTargets(1, &stRTVHandleThirdPass, false, nullptr);
+						pICMDListPostPass->ClearRenderTargetView(stRTVHandleThirdPass, v4ClearColor, 0, nullptr);
+
+						//将第二遍渲染的结果作为纹理
+						CD3DX12_GPU_DESCRIPTOR_HANDLE stSRV3Handle(
+							pISRVHeapPostPass[c_nPostPass0]->GetGPUDescriptorHandleForHeapStart()
+							, nCurrentFrameIndex
+							, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
+
+						pICMDListPostPass->SetGraphicsRootDescriptorTable(0, stSRV3Handle);
+						pICMDListPostPass->SetGraphicsRootDescriptorTable(1, pISampleHeapPostPass->GetGPUDescriptorHandleForHeapStart());
+
+						// Draw Call!
+						pICMDListPostPass->DrawInstanced(4, 1, 0, 0);
+
 						// 设置好同步围栏
-						stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1
+						pICMDListPostPass->ResourceBarrier(1
 							, &CD3DX12_RESOURCE_BARRIER::Transition(
-								pIOffLineRTRes[nCurrentFrameIndex].Get()
+								pIOffLineRTRes[c_nPostPass1][nCurrentFrameIndex].Get()
 								, D3D12_RESOURCE_STATE_RENDER_TARGET
 								, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
-						GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pICMDList->Close());
+						//-------------------------------------------------------------------------------------------------------	
+						// 4 Fourth Pass
+						if (0 == g_nUsePSID)
+						{//没有 高斯模糊
+							pICMDListPostPass->SetPipelineState(pIPSODoNothing.Get());
+						}
+						else
+						{//高斯模糊
+							pICMDListPostPass->SetPipelineState(pIPSOPostPass[c_nPostPass1].Get());
+						}
 
-						// 使用辅助显卡上的主命令队列执行命令列表
-						// 辅助显卡上的主命令队列通过等待共享的围栏对象最终完成了与主显卡之间的同步
-						GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pICMDQueue->Wait(stGPU[c_nSecondGPU].m_pISharedFence.Get(), n64CurrentFenceValue));
-					}
-					// 调用高斯模糊效果（Third Pass）
-					{ {
-							pICMDAllocThirdPass->Reset();
-							pICMDListThirdPass->Reset(pICMDAllocThirdPass.Get(), pIPSOThirdPass.Get());
+						arDesHeaps.RemoveAll();
+						arDesHeaps.Add(pISRVHeapPostPass[c_nPostPass1].Get());
+						arDesHeaps.Add(pISampleHeapPostPass.Get());
 
-							//将第二遍渲染的结果作为纹理
-							CD3DX12_CPU_DESCRIPTOR_HANDLE stSrvHandle(
-								pISRVHeapThirdPass->GetCPUDescriptorHandleForHeapStart()
-								, nCurrentFrameIndex
-								, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
+						pICMDListPostPass->SetDescriptorHeaps(static_cast<UINT>(arDesHeaps.GetCount()),arDesHeaps.GetData());
 
-							pICMDListThirdPass->SetGraphicsRootSignature(pIRSThirdPass.Get());
+						D3D12_RESOURCE_BARRIER stRTBarriersFourthPass = CD3DX12_RESOURCE_BARRIER::Transition(
+							stGPU[c_nSecondGPU].m_pIRTRes[nCurrentFrameIndex].Get()
+							, D3D12_RESOURCE_STATE_PRESENT
+							, D3D12_RESOURCE_STATE_RENDER_TARGET);
+						pICMDListPostPass->ResourceBarrier(1, &stRTBarriersFourthPass);
 
-							if ( 0 == g_nUsePSID )
-							{
-								pICMDListThirdPass->SetPipelineState(pIPSODoNothing.Get());
-							}
-							else if ( 1 == g_nUsePSID )
-							{
-								pICMDListThirdPass->SetPipelineState(pIPSOThirdPass.Get());
-							}
-							else
-							{
-								pICMDListThirdPass->SetPipelineState(pIPSOBothwayBlur.Get());
-							}
+						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTV4Handle(
+							stGPU[c_nSecondGPU].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
+							, nCurrentFrameIndex
+							, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
+						pICMDListPostPass->OMSetRenderTargets(1, &stRTV4Handle, false, nullptr);
+						float f4ClearColor[] = { 1.0f,0.0f,1.0f,1.0f }; //故意使用不同的清除色，查看是否有“露底”的问题
+						pICMDListPostPass->ClearRenderTargetView(stRTV4Handle, f4ClearColor, 0, nullptr);
 
-							ID3D12DescriptorHeap* ppHeaps[] = { pISRVHeapThirdPass.Get(),pISampleHeapThirdPass.Get() };
-							pICMDListThirdPass->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+						//将第三遍渲染的结果作为纹理
+						CD3DX12_GPU_DESCRIPTOR_HANDLE stSRV4Handle(
+							pISRVHeapPostPass[c_nPostPass1]->GetGPUDescriptorHandleForHeapStart()
+							, nCurrentFrameIndex
+							, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
 
-							pICMDListThirdPass->RSSetViewports(1, &g_stViewPort);
-							pICMDListThirdPass->RSSetScissorRects(1, &g_stScissorRect);
+						pICMDListPostPass->SetGraphicsRootDescriptorTable(0, stSRV4Handle);
+						pICMDListPostPass->SetGraphicsRootDescriptorTable(1, pISampleHeapPostPass->GetGPUDescriptorHandleForHeapStart());
+						// Draw Call!
+						pICMDListPostPass->DrawInstanced(4, 1, 0, 0);
 
-							D3D12_RESOURCE_BARRIER stRTSecondaryBarriers = CD3DX12_RESOURCE_BARRIER::Transition(
+						// 设置好同步围栏
+						pICMDListPostPass->ResourceBarrier(1
+							, &CD3DX12_RESOURCE_BARRIER::Transition(
 								stGPU[c_nSecondGPU].m_pIRTRes[nCurrentFrameIndex].Get()
-								, D3D12_RESOURCE_STATE_PRESENT
-								, D3D12_RESOURCE_STATE_RENDER_TARGET);
+								, D3D12_RESOURCE_STATE_RENDER_TARGET
+								, D3D12_RESOURCE_STATE_PRESENT));
 
-							pICMDListThirdPass->ResourceBarrier(1, &stRTSecondaryBarriers);
+						GRS_THROW_IF_FAILED(pICMDListPostPass->Close());
+					}
+					
+					arCmdList.RemoveAll();
+					arCmdList.Add(stGPU[c_nSecondGPU].m_pICMDList.Get());
 
-							CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(
-								stGPU[c_nSecondGPU].m_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
-								, nCurrentFrameIndex
-								, stGPU[c_nSecondGPU].m_nRTVDescriptorSize);
-							pICMDListThirdPass->OMSetRenderTargets(1, &stRTVHandle, false, nullptr);
-							float f4ClearColor[] = { 1.0f,0.0f,1.0f,1.0f }; //故意使用与主显卡渲染目标不同的清除色，查看是否有“露底”的问题
-							pICMDListThirdPass->ClearRenderTargetView(stRTVHandle, f4ClearColor, 0, nullptr);
-
-							// 开始绘制矩形
-							CD3DX12_GPU_DESCRIPTOR_HANDLE stSRVHandle(
-								pISRVHeapThirdPass->GetGPUDescriptorHandleForHeapStart()
-								, nCurrentFrameIndex
-								, stGPU[c_nSecondGPU].m_nSRVDescriptorSize);
-
-							pICMDListThirdPass->SetGraphicsRootDescriptorTable(0, stSRVHandle);
-							pICMDListThirdPass->SetGraphicsRootDescriptorTable(1, pISampleHeapThirdPass->GetGPUDescriptorHandleForHeapStart());
-
-							pICMDListThirdPass->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-							pICMDListThirdPass->IASetVertexBuffers(0, 1, &pstVBVQuad);
-							// Draw Call!
-							pICMDListThirdPass->DrawInstanced(4, 1, 0, 0);
-
-							// 设置好同步围栏
-							pICMDListThirdPass->ResourceBarrier(1
-								, &CD3DX12_RESOURCE_BARRIER::Transition(
-									stGPU[c_nSecondGPU].m_pIRTRes[nCurrentFrameIndex].Get()
-									, D3D12_RESOURCE_STATE_RENDER_TARGET
-									, D3D12_RESOURCE_STATE_PRESENT));
-
-							GRS_THROW_IF_FAILED(pICMDListThirdPass->Close());
-					}}
-
-					ID3D12CommandList* ppBlurCommandLists[]
-						= { stGPU[c_nSecondGPU].m_pICMDList.Get(), pICMDListThirdPass.Get() };
-					stGPU[c_nSecondGPU].m_pICMDQueue->ExecuteCommandLists(_countof(ppBlurCommandLists), ppBlurCommandLists);
+					if ( 1 == g_nUsePSID)
+					{
+						arCmdList.Add(pICMDListPostPass.Get());
+					}			
+					
+					stGPU[c_nSecondGPU].m_pICMDQueue->ExecuteCommandLists(static_cast<UINT>(arCmdList.GetCount()), arCmdList.GetData());
 
 					// 执行Present命令最终呈现画面
 					GRS_THROW_IF_FAILED(pISwapChain3->Present(1, 0));
@@ -1999,7 +2111,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					GRS_THROW_IF_FAILED(stGPU[c_nSecondGPU].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, stGPU[c_nSecondGPU].m_hEventFence));
 
 					n64FenceValue++;
-					
+
 					// 状态又跳回1 开始下一轮渲染
 					nStates = 1;
 
@@ -2041,7 +2153,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//检测一下线程的活动情况，如果有线程已经退出了，就退出循环
 			dwRet = WaitForMultipleObjects(static_cast<DWORD>(arHSubThread.GetCount()), arHSubThread.GetData(), FALSE, 0);
 			dwRet -= WAIT_OBJECT_0;
-			if ( dwRet >= 0 && dwRet < g_nMaxThread )
+			if (dwRet >= 0 && dwRet < g_nMaxThread)
 			{//有线程的句柄已经成为有信号状态，即对应线程已经退出，这说明发生了错误
 				bExit = TRUE;
 			}
@@ -2108,15 +2220,15 @@ UINT __stdcall RenderThread(void* pParam)
 		ComPtr<ID3D12DescriptorHeap>		pISRVHeap;
 		ComPtr<ID3D12DescriptorHeap>		pISampleHeap;
 
-		ST_GRS_MVP*							pMVPBufModule = nullptr;
-		ST_GRS_PEROBJECT_CB*				pPerObjBuf = nullptr;
+		ST_GRS_MVP* pMVPBufModule = nullptr;
+		ST_GRS_PEROBJECT_CB* pPerObjBuf = nullptr;
 		D3D12_VERTEX_BUFFER_VIEW			stVBV = {};
 		D3D12_INDEX_BUFFER_VIEW				stIBV = {};
 		UINT								nIndexCnt = 0;
 		XMMATRIX							mxPosModule = XMMatrixTranslationFromVector(XMLoadFloat4(&pThdPms->m_v4ModelPos));  //当前渲染物体的位置
 		// Mesh Value
-		ST_GRS_VERTEX*						pstVertices = nullptr;
-		UINT*								pnIndices = nullptr;
+		ST_GRS_VERTEX* pstVertices = nullptr;
+		UINT* pnIndices = nullptr;
 		UINT								nVertexCnt = 0;
 		// DDS Value
 		std::unique_ptr<uint8_t[]>			pbDDSData;
@@ -2328,7 +2440,7 @@ UINT __stdcall RenderThread(void* pParam)
 		float fUp = 1.0f;
 		float fRawYPos = pThdPms->m_v4ModelPos.y;
 		XMMATRIX xmMWVP;
-
+		CAtlArray<ID3D12DescriptorHeap*> arDesHeaps;
 		DWORD dwRet = 0;
 		BOOL  bQuit = FALSE;
 		MSG   msg = {};
@@ -2348,7 +2460,7 @@ UINT __stdcall RenderThread(void* pParam)
 					//==============================================================================
 					//使用主线程更新的统一帧时间更新下物体的物理状态等，这里仅演示球体上下跳动的样子
 					//启发式的向大家说明利用多线程渲染时，物理变换可以在不同的线程中，并且在不同的CPU上并行的执行
-					if ( g_nThdSphere == pThdPms->m_nThreadIndex )
+					if (g_nThdSphere == pThdPms->m_nThreadIndex)
 					{
 						if (pThdPms->m_v4ModelPos.y >= 2.0f * fRawYPos)
 						{
@@ -2362,7 +2474,7 @@ UINT __stdcall RenderThread(void* pParam)
 							pThdPms->m_v4ModelPos.y = fRawYPos;
 						}
 
-						pThdPms->m_v4ModelPos.y 
+						pThdPms->m_v4ModelPos.y
 							+= fUp * fJmpSpeed * static_cast<float>(pThdPms->m_nCurrentTime - pThdPms->m_nStartTime);
 
 						mxPosModule = XMMatrixTranslationFromVector(XMLoadFloat4(&pThdPms->m_v4ModelPos));
@@ -2404,8 +2516,12 @@ UINT __stdcall RenderThread(void* pParam)
 				{
 					pThdPms->m_pICMDList->SetGraphicsRootSignature(pThdPms->m_pIRS);
 					pThdPms->m_pICMDList->SetPipelineState(pThdPms->m_pIPSO);
-					ID3D12DescriptorHeap* ppHeapsSphere[] = { pISRVHeap.Get(),pISampleHeap.Get() };
-					pThdPms->m_pICMDList->SetDescriptorHeaps(_countof(ppHeapsSphere), ppHeapsSphere);
+
+					arDesHeaps.RemoveAll();
+					arDesHeaps.Add(pISRVHeap.Get());
+					arDesHeaps.Add(pISampleHeap.Get());
+
+					pThdPms->m_pICMDList->SetDescriptorHeaps(static_cast<UINT>(arDesHeaps.GetCount()),arDesHeaps.GetData());
 
 					CD3DX12_GPU_DESCRIPTOR_HANDLE stSRVHandle(pISRVHeap->GetGPUDescriptorHandleForHeapStart());
 					//设置CBV
@@ -2439,7 +2555,7 @@ UINT __stdcall RenderThread(void* pParam)
 			{//处理消息
 				while (::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 				{//这里只可能是别的线程发过来的消息，用于更复杂的场景
-					if ( WM_QUIT != msg.message )
+					if (WM_QUIT != msg.message)
 					{
 						::TranslateMessage(&msg);
 						::DispatchMessage(&msg);
@@ -2458,7 +2574,7 @@ UINT __stdcall RenderThread(void* pParam)
 			}
 		}
 	}
-	catch (CGRSCOMException&e)
+	catch (CGRSCOMException & e)
 	{
 		e;
 	}
@@ -2473,13 +2589,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 	{
 		PostQuitMessage(0);
-	}	
+	}
 	break;
 	case WM_KEYDOWN:
 	{
 		USHORT n16KeyCode = (wParam & 0xFF);
-	
-		if ( VK_SPACE == n16KeyCode )
+
+		if (VK_SPACE == n16KeyCode)
 		{//切换效果
 			g_nFunNO += 1;
 			if (g_nFunNO >= g_nMaxFunNO)
@@ -2488,16 +2604,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 
-		if ( VK_TAB == n16KeyCode )
+		if (VK_TAB == n16KeyCode)
 		{
 			++g_nUsePSID;
-			if (g_nUsePSID > 2)
+			if (g_nUsePSID > 1)
 			{
 				g_nUsePSID = 0;
 			}
 		}
 
-		if ( 1 == g_nFunNO )
+		if (1 == g_nFunNO)
 		{//当进行水彩画效果渲染时控制生效
 			if ('Q' == n16KeyCode || 'q' == n16KeyCode)
 			{//q 增加水彩取色半径
@@ -2518,17 +2634,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 
-		if ( VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode )
+		if (VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode)
 		{
 			//double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 			g_fPalstance += 10.0f * XM_PI / 180.0f;
-			if ( g_fPalstance > XM_PI )
+			if (g_fPalstance > XM_PI)
 			{
 				g_fPalstance = XM_PI;
 			}
 		}
 
-		if ( VK_SUBTRACT == n16KeyCode || VK_OEM_MINUS == n16KeyCode )
+		if (VK_SUBTRACT == n16KeyCode || VK_OEM_MINUS == n16KeyCode)
 		{
 			g_fPalstance -= 10.0f * XM_PI / 180.0f;
 			if (g_fPalstance < 0.0f)
@@ -2608,7 +2724,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		g_f3LockAt.y = sinf(g_fPitch);
 		g_f3LockAt.z = r * cosf(g_fYaw);
 
-		if ( VK_ESCAPE == n16KeyCode )
+		if (VK_ESCAPE == n16KeyCode)
 		{//按ESC键还原摄像机位置
 			g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f); //眼睛位置
 			g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置

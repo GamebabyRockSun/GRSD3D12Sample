@@ -180,17 +180,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\11-GaussianBlurPS.hlsl">
-      <FileType>Document</FileType>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Shader\11-DoNothingPS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\blurShaders_MS.hlsl">
+    <None Include="Shader\11-GaussianBlurPS.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
