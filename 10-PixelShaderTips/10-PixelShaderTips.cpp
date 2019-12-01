@@ -269,15 +269,26 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	{
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			UINT nBytes = GetCurrentDirectory(MAX_PATH, g_pszAppPath);
-			if (MAX_PATH == nBytes)
+			if (0 == ::GetModuleFileName(nullptr, g_pszAppPath, MAX_PATH))
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
 
 			WCHAR* lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
 			if (lastSlash)
-			{
+			{//删除Exe文件名
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除x64路径
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Debug 或 Release路径
 				*(lastSlash + 1) = _T('\0');
 			}
 		}
