@@ -968,7 +968,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			float fDPIx = 96.0f;
 			float fDPIy = 96.0f;
 			// 这里需要注意 现在GetDesktopDpi方法已经被否决了，不能再调用了
-			// 因此所有DPI设置为0.0让D2D自己去根据设备上下文去决定
+			// 之前的注释有问题，设置成0会出错，我们这里改成了Windows系统默认的96
 			//DisplayInformation::LogicalDpi for Windows Store Apps or GetDpiForWindow for desktop apps.
 			//UINT nDPI = ::GetDpiForWindow(hWnd);
 			//pID2D1Factory7->GetDesktopDpi(&fDPIx, &fDPIy);
