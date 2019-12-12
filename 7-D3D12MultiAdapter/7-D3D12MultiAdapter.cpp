@@ -247,6 +247,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		const float							arf4ClearColor[4] = { 0.2f, 0.5f, 1.0f, 1.0f };
 
 		ComPtr<IDXGIFactory5>				pIDXGIFactory5;
+		ComPtr<IDXGIFactory6>				pIDXGIFactory6;
 		ComPtr<IDXGISwapChain1>				pISwapChain1;
 		ComPtr<IDXGISwapChain3>				pISwapChain3;
 
@@ -336,6 +337,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory5);
 			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
 			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
+			//获取IDXGIFactory6接口
+			GRS_THROW_IF_FAILED(pIDXGIFactory5.As(&pIDXGIFactory6));
+			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory6);
 		}
 
 		// 枚举适配器创建设备
@@ -343,39 +347,70 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		 //，它里面用的就是序号0默认是集显1是独显然后按主次创建
 
 			D3D12_FEATURE_DATA_ARCHITECTURE stArchitecture = {};
+			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 			IDXGIAdapter1*	pIAdapterTmp	= nullptr;
 			ID3D12Device4*	pID3DDeviceTmp	= nullptr;
 			IDXGIOutput*	pIOutput		= nullptr;
 			HRESULT			hrEnumOutput	= S_OK;
-
-			for ( UINT nAdapterIndex = 0; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(nAdapterIndex, &pIAdapterTmp); ++ nAdapterIndex)
+			UINT			i = 0;
+			for (i = 0;
+				(i < nMaxGPUParams) &&
+				SUCCEEDED(pIDXGIFactory6->EnumAdapterByGpuPreference(
+					i
+					, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
+					, IID_PPV_ARGS(&pIAdapterTmp)));
+				++i)
 			{
-				DXGI_ADAPTER_DESC1 stAdapterDesc = {};
-				pIAdapterTmp->GetDesc1(&stAdapterDesc);
+				ZeroMemory(&stAdapterDesc, sizeof(DXGI_ADAPTER_DESC1));
+				GRS_THROW_IF_FAILED(pIAdapterTmp->GetDesc1(&stAdapterDesc));
 
 				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-				{//跳过软件虚拟适配器设备
-					GRS_SAFE_RELEASE(pIAdapterTmp);
+				{//跳过软件虚拟适配器设备，
+				 //注释这个if判断，可以使用一个真实GPU和一个虚拟软适配器来看双GPU的示例
 					continue;
 				}
 
-				//第一种方法，通过判定那个显卡带有输出
-				hrEnumOutput = pIAdapterTmp->EnumOutputs(0, &pIOutput);
-
-				if ( SUCCEEDED(hrEnumOutput) && nullptr != pIOutput)
-				{//该适配器带有显示输出，通常是集显（针对笔记本的情况）
-					//我们将集显称为Main Device，因为用它来后处理和最终输出
+				if ( i == nIDGPUMain )
+				{	
 					GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp
 						, D3D_FEATURE_LEVEL_12_1
 						, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pID3DDevice)));
 				}
 				else
-				{//不带显示输出的，通常是独显（针对笔记本的情况）
-					//我们用独显来完成主场景渲染，当然它就是渲染到纹理，后面会看到我们使用的是共享显存的纹理
-					GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pID3DDevice)));
+				{	
+					GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp
+						, D3D_FEATURE_LEVEL_12_1
+						, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pID3DDevice)));
 				}
-			
-				GRS_SAFE_RELEASE(pIOutput);
+
+			//for ( UINT nAdapterIndex = 0; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(nAdapterIndex, &pIAdapterTmp); ++ nAdapterIndex)
+			//{
+			//	
+			//	pIAdapterTmp->GetDesc1(&stAdapterDesc);
+
+			//	if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+			//	{//跳过软件虚拟适配器设备
+			//		GRS_SAFE_RELEASE(pIAdapterTmp);
+			//		continue;
+			//	}
+
+			//	//第一种方法，通过判定那个显卡带有输出
+			//	hrEnumOutput = pIAdapterTmp->EnumOutputs(0, &pIOutput);
+
+			//	if ( SUCCEEDED(hrEnumOutput) && nullptr != pIOutput)
+			//	{//该适配器带有显示输出，通常是集显（针对笔记本的情况）
+			//		//我们将集显称为Main Device，因为用它来后处理和最终输出
+			//		GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp
+			//			, D3D_FEATURE_LEVEL_12_1
+			//			, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pID3DDevice)));
+			//	}
+			//	else
+			//	{//不带显示输出的，通常是独显（针对笔记本的情况）
+			//		//我们用独显来完成主场景渲染，当然它就是渲染到纹理，后面会看到我们使用的是共享显存的纹理
+			//		GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapterTmp, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pID3DDevice)));
+			//	}
+			//
+			//	GRS_SAFE_RELEASE(pIOutput);
 
 
 				//第二种判定主次显卡的方法，就是看谁是UMA的谁不是，这个在之前的教程示例中已经详细讲解过
@@ -416,8 +451,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 
 			//---------------------------------------------------------------------------------------------
-			if ( nullptr == stGPUParams[nIDGPUMain].m_pID3DDevice.Get() || nullptr == stGPUParams[nIDGPUSecondary].m_pID3DDevice.Get() )
+			if ( nullptr == stGPUParams[nIDGPUMain].m_pID3DDevice.Get() 
+				|| nullptr == stGPUParams[nIDGPUSecondary].m_pID3DDevice.Get() )
 			{// 可怜的机器上居然没有两个以上的显卡 还是先退出了事 当然你可以使用软适配器凑活看下例子
+				OutputDebugString(_T("\n机器中显卡数量不足两个，示例程序退出！\n"));
 				throw CGRSCOMException(E_FAIL);
 			}
 
@@ -577,7 +614,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, IID_PPV_ARGS(&stGPUParams[iGPUIndex].m_pICmdList)));
 
 				
-				if (SUCCEEDED(StringCchPrintfW(pszDebugName,MAX_PATH, L"stGPUParams[%u].m_pICmdList%s[%u]", iGPUIndex)))
+				if (SUCCEEDED(StringCchPrintfW(pszDebugName,MAX_PATH, L"stGPUParams[%u].m_pICmdList", iGPUIndex)))
 				{
 					stGPUParams[iGPUIndex].m_pICmdList->SetName(pszDebugName);
 				}
@@ -737,7 +774,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			// 检测是否支持V1.1版本的根签名
 			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-			if (FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
+			if (FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE
+				, &stFeatureData, sizeof(stFeatureData))))
 			{
 				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 			}
@@ -1368,16 +1406,21 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 							stGPUParams[nIDGPUMain].m_pIDHRTV->GetCPUDescriptorHandleForHeapStart()
 							, nCurrentFrameIndex
 							, stGPUParams[nIDGPUMain].m_nszRTV);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(stGPUParams[nIDGPUMain].m_pIDHDSVTex->GetCPUDescriptorHandleForHeapStart());
+						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(
+							stGPUParams[nIDGPUMain].m_pIDHDSVTex->GetCPUDescriptorHandleForHeapStart());
 
-						stGPUParams[nIDGPUMain].m_pICmdList->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
-						stGPUParams[nIDGPUMain].m_pICmdList->ClearRenderTargetView(rtvHandle, arf4ClearColor, 0, nullptr);
-						stGPUParams[nIDGPUMain].m_pICmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+						stGPUParams[nIDGPUMain].m_pICmdList->OMSetRenderTargets(
+							1, &rtvHandle, false, &dsvHandle);
+						stGPUParams[nIDGPUMain].m_pICmdList->ClearRenderTargetView(
+							rtvHandle, arf4ClearColor, 0, nullptr);
+						stGPUParams[nIDGPUMain].m_pICmdList->ClearDepthStencilView(
+							dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 						
 						//执行实际的物体绘制渲染，Draw Call！
 						for (int i = 0; i < nMaxObject; i++)
 						{
-							ID3D12DescriptorHeap* ppHeapsSkybox[] = { stModuleParams[i].pISRVCBVHp.Get(),stModuleParams[i].pISampleHp.Get() };
+							ID3D12DescriptorHeap* ppHeapsSkybox[] 
+								= { stModuleParams[i].pISRVCBVHp.Get(),stModuleParams[i].pISampleHp.Get() };
 							stGPUParams[nIDGPUMain].m_pICmdList->SetDescriptorHeaps(_countof(ppHeapsSkybox), ppHeapsSkybox);
 							stGPUParams[nIDGPUMain].m_pICmdList->ExecuteBundle(stModuleParams[i].pIBundle.Get());
 						}
@@ -1392,11 +1435,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					}
 
 					{// 第一步：在主显卡的主命令队列上执行主命令列表
-						ID3D12CommandList* ppRenderCommandLists[] = { stGPUParams[nIDGPUMain].m_pICmdList.Get() };
-						stGPUParams[nIDGPUMain].m_pICmdQueue->ExecuteCommandLists(_countof(ppRenderCommandLists), ppRenderCommandLists);
+						ID3D12CommandList* ppRenderCommandLists[] 
+							= { stGPUParams[nIDGPUMain].m_pICmdList.Get() };
+						stGPUParams[nIDGPUMain].m_pICmdQueue->ExecuteCommandLists(
+							_countof(ppRenderCommandLists), ppRenderCommandLists);
 
 						n64CurrentFenceValue = n64FenceValue;
-						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
+						GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(
+							stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
 						n64FenceValue++;
 					}
 
@@ -1405,7 +1451,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						if (bCrossAdapterTextureSupport)
 						{
 							// 如果适配器支持跨适配器行主纹理，只需将该纹理复制到跨适配器纹理中。
-							pICmdListCopy->CopyResource(stGPUParams[nIDGPUMain].m_pICrossAdapterResPerFrame[nCurrentFrameIndex].Get()
+							pICmdListCopy->CopyResource(
+								stGPUParams[nIDGPUMain].m_pICrossAdapterResPerFrame[nCurrentFrameIndex].Get()
 								, stGPUParams[nIDGPUMain].m_pIRTRes[nCurrentFrameIndex].Get());
 						}
 						else
