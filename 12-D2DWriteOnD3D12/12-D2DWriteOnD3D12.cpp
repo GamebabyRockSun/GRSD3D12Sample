@@ -350,7 +350,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	//-----------------------------------------------------------------------------------------------------------
 	// D2D & DWrite 相关变量
-	UINT nD3D11DeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+	UINT								nD3D11DeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+	const FLOAT							DEFAULT_DPI = 96.f;
 	ComPtr<ID3D11Device5>				pID3D11Device5;
 	ComPtr<ID3D11DeviceContext4>		pID3D11DeviceContext4;
 	ComPtr<ID3D11On12Device1>			pID3D11On12Device1;
@@ -536,6 +537,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			::SetWindowText(hWnd, pszWndTitle);
 		}
 
+		//-----------------------------------------------------------------------------------------------------------
 		// 创建D3D11on12设备
 		{
 #if defined(_DEBUG)
@@ -564,7 +566,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(pID3D11Device5.As(&pID3D11On12Device1));
 		}
 
-		//-----------------------------------------------------------------------------------------------------------
 		//创建D2D、DWrite工厂
 		{
 			D2D1_FACTORY_OPTIONS stD2DFactoryOptions = {};
@@ -965,8 +966,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//-----------------------------------------------------------------------------------------------------------
 		// 创建D2D的 Render Target
 		{{
-			float fDPIx = 96.0f;
-			float fDPIy = 96.0f;
+			float fDPIx = DEFAULT_DPI;
+			float fDPIy = DEFAULT_DPI;
 			// 这里需要注意 现在GetDesktopDpi方法已经被否决了，不能再调用了
 			// 之前的注释有问题，设置成0会出错，我们这里改成了Windows系统默认的96
 			//DisplayInformation::LogicalDpi for Windows Store Apps or GetDpiForWindow for desktop apps.
@@ -2381,8 +2382,8 @@ UINT __stdcall RenderThread(void* pParam)
 		UINT								nIndexCnt = 0;
 		XMMATRIX							mxPosModule = XMMatrixTranslationFromVector(XMLoadFloat4(&pThdPms->m_v4ModelPos));  //当前渲染物体的位置
 		// Mesh Value
-		ST_GRS_VERTEX* pstVertices = nullptr;
-		UINT* pnIndices = nullptr;
+		ST_GRS_VERTEX*						pstVertices = nullptr;
+		UINT*								pnIndices = nullptr;
 		UINT								nVertexCnt = 0;
 		// DDS Value
 		std::unique_ptr<uint8_t[]>			pbDDSData;
