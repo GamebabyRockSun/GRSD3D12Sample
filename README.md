@@ -77,18 +77,18 @@ Gamebaby Rock Sun's D3D12 C-Style Sample for beginner
 
 ![image-20191212180600560](/ScreenShot/image-20191212180600560.png)
 
-12、12-D2DWriteOnD3D12
+# 12、12-D2DWriteOnD3D12
 
 这个示例主要展示在多线程多显卡渲染架构的基础上再融入D2D和DWrite，这样方便显示一些文字信息，为性能考虑有意将D2D和DWrite放在了辅助显卡（一般是核显）上来执行，这样主显卡就专心去做渲染的工作。
 
 ![image-20191213145910521](/ScreenShot/image-20191213145910521.png)
 
-13、13-ShowGIFAndResourceStatus
+# 13、13-ShowGIFAndResourceStatus
 
 这个示例主要展示如何使用WIC加载GIF动画图片，同时当做纹理来显示。GIF动画的处理主要使用到了Direct Computer作为预处理管线。重点就是展示使用Direct Computer来做纹理图片的预处理的技术，这是一个很重要的基本技巧。这个例子由将基本框架回复到了单线程单显卡渲染的基础上。重点是演示现代显卡的多引擎架构，即有3D引擎、计算引擎，可以同时创建多个分别代表这些引擎的命令队列，并演示了多个引擎间同步的方法。
 
 ![image-20191213150308181](/ScreenShot/image-20191213150308181.png)
 
-14、14-MultiThreadShadow
+# 14、14-MultiThreadShadow
 
 该示例主要展示使用多线程渲染时，如何进行多线程多Pass组合渲染来显示阴影。其中的渲染到深度缓冲的方法是一个十分重要的方法，是现代比较流行的延迟渲染、Forward+等渲染技术的核心基础技术之一。（该示例还在开发中，完成后提交并进一步补充文档及运行截屏）。
