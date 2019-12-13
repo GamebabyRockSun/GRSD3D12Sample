@@ -715,7 +715,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				D3D12_HEAP_FLAG_SHARED | D3D12_HEAP_FLAG_SHARED_CROSS_ADAPTER);
 
 			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateHeap(&stCrossHeapDesc
-				, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pICrossAdapterHeap)));
+				, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pICrossAdapterHeap)) );
 		
 			HANDLE hHeap = nullptr;
 			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3DDevice->CreateSharedHandle(
