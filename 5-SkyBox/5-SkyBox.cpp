@@ -174,19 +174,21 @@ DXGI_FORMAT GetDXGIFormatFromPixelFormat(const GUID* pPixelFormat)
 
 struct ST_GRS_VERTEX
 {//这次我们额外加入了每个顶点的法线，但Shader中还暂时没有用
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };
 
 struct ST_GRS_SKYBOX_VERTEX
 {//天空盒子的顶点结构
-	XMFLOAT4 m_vPos;
+	XMFLOAT4 m_v4Position;
 };
 
 struct ST_GRS_FRAME_MVP_BUFFER
 {
 	XMFLOAT4X4 m_MVP;			//经典的Model-view-projection(MVP)矩阵.
+	XMFLOAT4X4 m_mWorld;
+	XMFLOAT4   m_v4EyePos;
 };
 
 UINT g_nCurrentSamplerNO = 1; //当前使用的采样器索引 ，这里默认使用第一个
@@ -773,6 +775,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			};
 
 			// 创建Skybox的(PSO)对象 注意天空盒子不需要深度测试
+			stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+			//stPSODesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 			stPSODesc.DepthStencilState.DepthEnable = FALSE;
 			stPSODesc.DepthStencilState.StencilEnable = FALSE;
 			stPSODesc.InputLayout = { stIALayoutSkybox, _countof(stIALayoutSkybox) };
@@ -1063,10 +1067,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			float fLowW = 1.0f + (1.0f / (float)iWndWidth);
 			float fLowH = 1.0f + (1.0f / (float)iWndHeight);
 
-			stSkyboxVertices[0].m_vPos = XMFLOAT4(fLowW, fLowH, 1.0f, 1.0f);
-			stSkyboxVertices[1].m_vPos = XMFLOAT4(fLowW, fHighH, 1.0f, 1.0f);
-			stSkyboxVertices[2].m_vPos = XMFLOAT4(fHighW, fLowH, 1.0f, 1.0f);
-			stSkyboxVertices[3].m_vPos = XMFLOAT4(fHighW, fHighH, 1.0f, 1.0f);
+			stSkyboxVertices[0].m_v4Position = XMFLOAT4(fLowW, fLowH, 1.0f, 1.0f);
+			stSkyboxVertices[1].m_v4Position = XMFLOAT4(fLowW, fHighH, 1.0f, 1.0f);
+			stSkyboxVertices[2].m_v4Position = XMFLOAT4(fHighW, fLowH, 1.0f, 1.0f);
+			stSkyboxVertices[3].m_v4Position = XMFLOAT4(fHighW, fHighH, 1.0f, 1.0f);
 		}
 
 		// 加载球体的网格数据
@@ -1106,8 +1110,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			for (UINT i = 0; i < nSphereVertexCnt; i++)
 			{
-				fin >> pstSphereVertices[i].m_vPos.x >> pstSphereVertices[i].m_vPos.y >> pstSphereVertices[i].m_vPos.z;
-				pstSphereVertices[i].m_vPos.w = 1.0f;
+				fin >> pstSphereVertices[i].m_v4Position.x >> pstSphereVertices[i].m_v4Position.y >> pstSphereVertices[i].m_v4Position.z;
+				pstSphereVertices[i].m_v4Position.w = 1.0f;
 				fin >> pstSphereVertices[i].m_vTex.x >> pstSphereVertices[i].m_vTex.y;
 				fin >> pstSphereVertices[i].m_vNor.x >> pstSphereVertices[i].m_vNor.y >> pstSphereVertices[i].m_vNor.z;
 
@@ -1420,23 +1424,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					}
 
 					//计算 视矩阵 view * 裁剪矩阵 projection
-					XMMATRIX xmMVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&g_f3EyePos)
+					XMMATRIX xmVP = XMMatrixMultiply(XMMatrixLookAtLH(XMLoadFloat3(&g_f3EyePos)
 						, XMLoadFloat3(&g_f3LockAt)
 						, XMLoadFloat3(&g_f3HeapUp))
 						, XMMatrixPerspectiveFovLH(XM_PIDIV4
 							, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 0.1f, 1000.0f));
 
 					//设置Skybox的MVP
-					XMStoreFloat4x4(&pMVPBufSkybox->m_MVP, xmMVP);
+					XMStoreFloat4x4(&pMVPBufSkybox->m_MVP, xmVP);
+					
+					XMStoreFloat4x4(&pMVPBufSkybox->m_mWorld, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+					
+					pMVPBufSkybox->m_v4EyePos = XMFLOAT4(g_f3EyePos.x,g_f3EyePos.y,g_f3EyePos.z,1.0f);
 
 					//模型矩阵 model 这里是放大后旋转
 					XMMATRIX xmRot = XMMatrixMultiply(XMMatrixScaling(fSphereSize, fSphereSize, fSphereSize)
 						, XMMatrixRotationY(static_cast<float>(dModelRotationYAngle)));
 
 					//计算球体的MVP
-					xmMVP = XMMatrixMultiply(xmRot, xmMVP);
+					xmVP = XMMatrixMultiply(xmRot, xmVP);
 
-					XMStoreFloat4x4(&pMVPBufEarth->m_MVP, xmMVP);
+					XMStoreFloat4x4(&pMVPBufEarth->m_MVP, xmVP);
 				}
 
 				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了

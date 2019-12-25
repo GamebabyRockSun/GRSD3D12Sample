@@ -197,7 +197,7 @@ struct ST_GRS_THREAD_PARAMS
 // 顶点结构
 struct ST_GRS_VERTEX
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };
@@ -205,7 +205,7 @@ struct ST_GRS_VERTEX
 //用于后处理渲染的矩形定点结构
 struct ST_GRS_VERTEX_QUAD
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 };
 
@@ -2736,8 +2736,8 @@ BOOL LoadMeshVertex(const CHAR* pszMeshFileName, UINT& nVertexCnt, ST_GRS_VERTEX
 
 		for (UINT i = 0; i < nVertexCnt; i++)
 		{
-			fin >> ppVertex[i].m_vPos.x >> ppVertex[i].m_vPos.y >> ppVertex[i].m_vPos.z;
-			ppVertex[i].m_vPos.w = 1.0f;
+			fin >> ppVertex[i].m_v4Position.x >> ppVertex[i].m_v4Position.y >> ppVertex[i].m_v4Position.z;
+			ppVertex[i].m_v4Position.w = 1.0f;
 			fin >> ppVertex[i].m_vTex.x >> ppVertex[i].m_vTex.y;
 			fin >> ppVertex[i].m_vNor.x >> ppVertex[i].m_vNor.y >> ppVertex[i].m_vNor.z;
 

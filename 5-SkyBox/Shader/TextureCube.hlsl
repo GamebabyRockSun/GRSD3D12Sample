@@ -9,7 +9,6 @@ cbuffer MVPBuffer : register(b0)
 	float4x4 m_MVP;
 };
 
-
 Texture2D g_texture : register(t0);
 SamplerState g_sampler : register(s0);
 

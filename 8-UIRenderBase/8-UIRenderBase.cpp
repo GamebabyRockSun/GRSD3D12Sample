@@ -168,7 +168,7 @@ DXGI_FORMAT GetDXGIFormatFromPixelFormat(const GUID* pPixelFormat)
 
 struct ST_GRS_VERTEX
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT4 m_vClr;		//Color
 	XMFLOAT2 m_vTxc;		//Texcoord
 };
@@ -202,8 +202,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	HWND								hWnd = nullptr;
 	MSG									msg = {};
 	TCHAR								pszAppPath[MAX_PATH] = {};
-
-	float								fAspectRatio = 512.0f;
 
 	D3D12_VERTEX_BUFFER_VIEW			stVBViewQuad = {};
 	D3D12_VERTEX_BUFFER_VIEW			stVBViewLine = {};
@@ -454,6 +452,24 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
 		}
 
+		// 创建命令列表分配器和命令列表
+		{
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
+				, IID_PPV_ARGS(&pICommandAllocator)));
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
+				, pICommandAllocator.Get(), nullptr, IID_PPV_ARGS(&pICommandList)));
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
+				, IID_PPV_ARGS(&pICmdAllocQuad)));
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
+				, pICmdAllocQuad.Get(), pIPSOQuad.Get(), IID_PPV_ARGS(&pICmdBundlesQuad)));
+
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
+				, IID_PPV_ARGS(&pICmdAllocLine)));
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
+				, pICmdAllocLine.Get(), pIPSOLine.Get(), IID_PPV_ARGS(&pICmdBundlesLine)));
+		}
+
 		// 创建交换链和对应的RTV
 		{
 			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
@@ -671,23 +687,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		}
 
-		// 创建命令列表分配器和命令列表
-		{
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
-				, IID_PPV_ARGS(&pICommandAllocator)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
-				, pICommandAllocator.Get(), nullptr, IID_PPV_ARGS(&pICommandList)));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
-				, IID_PPV_ARGS(&pICmdAllocQuad)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
-				, pICmdAllocQuad.Get(), pIPSOQuad.Get(), IID_PPV_ARGS(&pICmdBundlesQuad)));
-
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
-				, IID_PPV_ARGS(&pICmdAllocLine)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
-				, pICmdAllocLine.Get(), pIPSOLine.Get(), IID_PPV_ARGS(&pICmdBundlesLine)));
-		}
 		
 		// 创建顶点缓冲
 		{
@@ -695,10 +695,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 基于左下角是坐标原点 X正方向向右 Y正方向向下 与窗口坐标系相同
 			ST_GRS_VERTEX stTriangleVertices[] =
 			{
-				{ { 0.0f * fAspectRatio, 0.0f * fAspectRatio, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f },	{ 0.0f, 0.0f }  },
-				{ { 1.0f * fAspectRatio, 0.0f * fAspectRatio, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f },	{ 1.0f, 0.0f }  },
-				{ { 0.0f * fAspectRatio, 1.0f * fAspectRatio, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.0f, 1.0f }  },
-				{ { 1.0f * fAspectRatio, 1.0f * fAspectRatio, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },	{ 1.0f, 1.0f }  },
+				{ { 0.0f , 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f },	{ 0.0f, 0.0f }  },
+				{ { 1.0f * nTextureW, 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f },	{ 1.0f, 0.0f }  },
+				{ { 0.0f , 1.0f * nTextureH, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.0f, 1.0f }  },
+				{ { 1.0f * nTextureW, 1.0f * nTextureH, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },	{ 1.0f, 1.0f }  },
 			};
 
 			UINT nVertexBufferSize = sizeof(stTriangleVertices);
@@ -728,8 +728,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			ST_GRS_VERTEX stLine[] =
 			{
-				{ { 0.0f * fAspectRatio, 0.0f * fAspectRatio, 0.0f, 1.0f}, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-				{ { 1.0f * fAspectRatio, 0.5f * fAspectRatio, 0.0f, 1.0f}, { 0.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
+				{ { 0.0f, 0.0f, 0.0f, 1.0f}, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+				{ { 1.0f * 512.0f, 0.5f * 512.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
 			};
 
 			UINT nVertexBufferSize = sizeof(stLine);

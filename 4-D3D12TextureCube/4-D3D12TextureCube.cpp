@@ -171,7 +171,7 @@ DXGI_FORMAT GetDXGIFormatFromPixelFormat(const GUID* pPixelFormat)
 
 struct ST_GRS_VERTEX
 {//这次我们额外加入了每个顶点的法线，但Shader中还暂时没有用
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };

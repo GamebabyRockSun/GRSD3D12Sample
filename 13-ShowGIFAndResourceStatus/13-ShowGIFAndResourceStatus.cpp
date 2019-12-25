@@ -244,7 +244,7 @@ DXGI_FORMAT GetDXGIFormatFromPixelFormat(const GUID* pPixelFormat)
 
 struct ST_GRS_VERTEX
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTxc;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };
@@ -261,7 +261,6 @@ struct ST_GRS_FRAME_MVP_BUFFER
 #define GRS_ARGB_R(ARGBColor) (((float)((ARGBColor & 0x00FF0000) >> 16))/255.0f)
 #define GRS_ARGB_G(ARGBColor) (((float)((ARGBColor & 0x0000FF00) >>  8))/255.0f)
 #define GRS_ARGB_B(ARGBColor) (((float)( ARGBColor & 0x000000FF))/255.0f)
-
 
 struct ST_GRS_GIF_FRAME_PARAM
 {
@@ -1943,8 +1942,8 @@ BOOL LoadMeshVertex(const CHAR* pszMeshFileName, UINT& nVertexCnt, ST_GRS_VERTEX
 
 		for (UINT i = 0; i < nVertexCnt; i++)
 		{
-			fin >> ppVertex[i].m_vPos.x >> ppVertex[i].m_vPos.y >> ppVertex[i].m_vPos.z;
-			ppVertex[i].m_vPos.w = 1.0f;
+			fin >> ppVertex[i].m_v4Position.x >> ppVertex[i].m_v4Position.y >> ppVertex[i].m_v4Position.z;
+			ppVertex[i].m_v4Position.w = 1.0f;
 			fin >> ppVertex[i].m_vTxc.x >> ppVertex[i].m_vTxc.y;
 			fin >> ppVertex[i].m_vNor.x >> ppVertex[i].m_vNor.y >> ppVertex[i].m_vNor.z;
 

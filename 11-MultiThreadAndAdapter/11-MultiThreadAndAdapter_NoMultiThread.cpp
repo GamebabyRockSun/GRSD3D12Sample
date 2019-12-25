@@ -198,7 +198,7 @@ struct ST_GRS_PEROBJECT_CB
 // 顶点结构
 struct ST_GRS_VERTEX_MODULE
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };
@@ -206,7 +206,7 @@ struct ST_GRS_VERTEX_MODULE
 // 辅助显卡上渲染单位矩形的顶点结构
 struct ST_GRS_VERTEX_QUAD
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 };
 
@@ -2322,8 +2322,8 @@ BOOL LoadMeshVertex(const CHAR* pszMeshFileName, UINT& m_nVertexCnt, ST_GRS_VERT
 
 		for (UINT i = 0; i < m_nVertexCnt; i++)
 		{
-			fin >> ppVertex[i].m_vPos.x >> ppVertex[i].m_vPos.y >> ppVertex[i].m_vPos.z;
-			ppVertex[i].m_vPos.w = 1.0f;
+			fin >> ppVertex[i].m_v4Position.x >> ppVertex[i].m_v4Position.y >> ppVertex[i].m_v4Position.z;
+			ppVertex[i].m_v4Position.w = 1.0f;
 			fin >> ppVertex[i].m_vTex.x >> ppVertex[i].m_vTex.y;
 			fin >> ppVertex[i].m_vNor.x >> ppVertex[i].m_vNor.y >> ppVertex[i].m_vNor.z;
 

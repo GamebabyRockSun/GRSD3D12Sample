@@ -121,7 +121,7 @@ private:
 // 顶点结构
 struct ST_GRS_VERTEX
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT2 m_vTex;		//Texcoord
 	XMFLOAT3 m_vNor;		//Normal
 };
@@ -135,7 +135,7 @@ struct ST_GRS_MVP
 // 矩形框的顶点结构
 struct ST_GRS_VERTEX_QUAD
 {
-	XMFLOAT4 m_vPos;		//Position
+	XMFLOAT4 m_v4Position;		//Position
 	XMFLOAT4 m_vClr;		//Color
 	XMFLOAT2 m_vTxc;		//Texcoord
 };
@@ -251,8 +251,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12PipelineState>			pIPSOQuad;
 	ComPtr<ID3D12DescriptorHeap>		pIDHQuad;
 	ComPtr<ID3D12DescriptorHeap>		pIDHSampleQuad;
-	ComPtr<ID3D12Resource>			    pICBMVO;	//常量缓冲
 	ComPtr<ID3D12Resource>				pIVBQuad;
+	ComPtr<ID3D12Resource>			    pICBMVO;	//常量缓冲
 
 	D3D12_VERTEX_BUFFER_VIEW			stVBViewQuad = {};
 	ST_GRS_CB_MVO*						pMOV = nullptr;
@@ -379,7 +379,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pIMainCmdQueue)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIMainCmdQueue);
 		}
-
+		
+		// 创建直接命令列表
+		{
+			// 预处理命令列表
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
+				, IID_PPV_ARGS(&pICmdAlloc)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdAlloc);
+			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
+				, pICmdAlloc.Get(), nullptr, IID_PPV_ARGS(&pICmdList)));
+			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdList);
+		}
+		
 		// 创建交换链
 		{
 			DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
@@ -472,17 +483,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pID3DDevice->CreateDepthStencilView(pIDepthStencilBuffer.Get()
 				, &stDepthStencilDesc
 				, pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
-		}
-
-		// 创建直接命令列表
-		{
-			// 预处理命令列表
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
-				, IID_PPV_ARGS(&pICmdAlloc)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdAlloc);
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
-				, pICmdAlloc.Get(), nullptr, IID_PPV_ARGS(&pICmdList)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pICmdList);
 		}
 
 		// 创建渲染物体用的管线的根签名和状态对象
@@ -1582,8 +1582,8 @@ BOOL LoadMeshVertex(const CHAR*pszMeshFileName, UINT&nVertexCnt, ST_GRS_VERTEX*&
 
 		for (UINT i = 0; i < nVertexCnt; i++)
 		{
-			fin >> ppVertex[i].m_vPos.x >> ppVertex[i].m_vPos.y >> ppVertex[i].m_vPos.z;
-			ppVertex[i].m_vPos.w = 1.0f;
+			fin >> ppVertex[i].m_v4Position.x >> ppVertex[i].m_v4Position.y >> ppVertex[i].m_v4Position.z;
+			ppVertex[i].m_v4Position.w = 1.0f;
 			fin >> ppVertex[i].m_vTex.x >> ppVertex[i].m_vTex.y;
 			fin >> ppVertex[i].m_vNor.x >> ppVertex[i].m_vNor.y >> ppVertex[i].m_vNor.z;
 

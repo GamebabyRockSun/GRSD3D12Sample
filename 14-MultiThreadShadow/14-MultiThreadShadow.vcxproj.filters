@@ -13,5 +13,41 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{25040fcd-953f-4bf6-86ca-f660eea04a0b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="14-MultiThreadShadow.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="14-MultiThreadShadow-noshadow.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\WindowsCommons\dds.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="..\WindowsCommons\DDSTextureLoader12.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shader\Quad.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\Commons.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\PSMain.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\VSMain.hlsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
 </Project>
