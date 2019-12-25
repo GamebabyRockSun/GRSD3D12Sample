@@ -21,6 +21,9 @@
 	StringCchPrintf(pszOutput,1024,_T("【ID:% 8u】：%s"),::GetCurrentThreadId(),pBuf);\
     WriteConsole(GetStdHandle(STD_OUTPUT_HANDLE),pszOutput,lstrlen(pszOutput),nullptr,nullptr);
 
+//利用等待线程句柄自己精确延时一定的毫秒数,用于替代不精确的系统函数Sleep
+#define GRS_SLEEP(dwMilliseconds) WaitForSingleObject(GetCurrentThread(),dwMilliseconds)
+
 class CGRSCOMException
 {
 public:
@@ -44,7 +47,7 @@ struct ST_GRS_THREAD_PARAMS
 	DWORD								m_dwMainThreadID;
 	HANDLE								m_hMainThread;
 
-	HANDLE								m_hRunEvent;
+	//HANDLE								m_hRunEvent;
 
 	UINT								m_nStatus;					//当前渲染状态
 
@@ -54,7 +57,9 @@ const UINT								g_nMaxThread = 6;
 ST_GRS_THREAD_PARAMS					g_stThreadParams[g_nMaxThread] = {};
 HANDLE									g_hEventShadowOver;
 HANDLE									g_hEventRenderOver;
+HANDLE									g_hSemaphore;
 SYNCHRONIZATION_BARRIER					g_stCPUThdBarrier = {};
+
 
 UINT __stdcall RenderThread(void* pParam);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -107,7 +112,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			g_hEventShadowOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			g_hEventRenderOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
-
+			g_hSemaphore = ::CreateSemaphore(nullptr, 0, g_nMaxThread, nullptr);
 			InitializeSynchronizationBarrier(&g_stCPUThdBarrier, g_nMaxThread, -1);
 		}
 
@@ -118,7 +123,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			for (int i = 0; i < g_nMaxThread; i++)
 			{
 				g_stThreadParams[i].m_nThreadIndex = i;		//记录序号
-				g_stThreadParams[i].m_hRunEvent = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
 				g_stThreadParams[i].m_nStatus = 0;
 
 				//以暂停方式创建线程
@@ -204,9 +208,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					{
 						//设定渲染状态为渲染阴影
 						g_stThreadParams[i].m_nStatus = 1;
-
-						SetEvent(g_stThreadParams[i].m_hRunEvent);
 					}
+					// 释放信标量至最大子线程数，相当于通知所有子线程开始运行
+					ReleaseSemaphore(g_hSemaphore, g_nMaxThread, nullptr);
 				}
 				break;
 				case 2:// 状态2 表示所有的渲染命令列表都记录完成了，开始后处理和执行命令列表
@@ -224,9 +228,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					{
 						//设定渲染状态为第二遍正常渲染
 						g_stThreadParams[i].m_nStatus = 2;
-
-						SetEvent(g_stThreadParams[i].m_hRunEvent);
 					}
+					// 释放信标量至最大子线程数，相当于通知所有子线程开始运行
+					ReleaseSemaphore(g_hSemaphore, g_nMaxThread, nullptr);
 				}
 				break;
 				case 3:
@@ -302,9 +306,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		for (int i = 0; i < g_nMaxThread; i++)
 		{
 			::CloseHandle(g_stThreadParams[i].m_hThisThread);
-			::CloseHandle(g_stThreadParams[i].m_hRunEvent);
 		}
 
+		::CloseHandle(g_hSemaphore);
 		DeleteSynchronizationBarrier(&g_stCPUThdBarrier);
 		GRS_PRINTF(_T("各子线程全部退出，主线程清理资源后退出\n"));
 	}
@@ -341,7 +345,7 @@ UINT __stdcall RenderThread(void* pParam)
 		while (!bQuit)
 		{
 			// 等待主线程通知开始渲染，同时仅接收主线程Post过来的消息，目前就是为了等待WM_QUIT消息
-			dwRet = ::MsgWaitForMultipleObjects(1, &pThdPms->m_hRunEvent, FALSE, INFINITE, QS_ALLPOSTMESSAGE);
+			dwRet = ::MsgWaitForMultipleObjects(1, &g_hSemaphore, FALSE, INFINITE, QS_ALLPOSTMESSAGE);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
@@ -359,6 +363,9 @@ UINT __stdcall RenderThread(void* pParam)
 					{
 						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：OnThreadRender()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
 					}
+
+					//延迟20毫秒，模拟子线程渲染运行
+					GRS_SLEEP(20);
 
 					//完成渲染（即关闭命令列表，并设置同步对象通知主线程开始执行）
 
@@ -383,6 +390,9 @@ UINT __stdcall RenderThread(void* pParam)
 					}
 					//完成渲染（即关闭命令列表，并设置同步对象通知主线程开始执行）
 
+					//延迟20毫秒，模拟子线程渲染运行
+					GRS_SLEEP(20);
+					
 					if (EnterSynchronizationBarrier(&g_stCPUThdBarrier, 0))
 					{
 						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：通知主线程完成第二遍正常渲染\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
