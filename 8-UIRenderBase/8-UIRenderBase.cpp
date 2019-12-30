@@ -210,7 +210,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	SIZE_T								szCBBuf = GRS_UPPER(sizeof(ST_GRS_CB_MVO), 256);
 
 	UINT64								n64FenceValue = 0ui64;
-	HANDLE								hFenceEvent = nullptr;
+	HANDLE								hEventFence = nullptr;
 
 	UINT								nTextureW = 0u;
 	UINT								nTextureH = 0u;
@@ -224,9 +224,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight));
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
-	ComPtr<IDXGIAdapter1>				pIAdapter;
-	ComPtr<ID3D12Device4>				pID3DDevice;
-	ComPtr<ID3D12CommandQueue>			pICommandQueue;
+	ComPtr<IDXGIAdapter1>				pIAdapter1;
+	ComPtr<ID3D12Device4>				pID3D12Device4;
+	ComPtr<ID3D12CommandQueue>			pICMDQueue;
 
 	ComPtr<IDXGISwapChain1>				pISwapChain1;
 	ComPtr<IDXGISwapChain3>				pISwapChain3;
@@ -245,8 +245,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12PipelineState>			pIPSOQuad;
 	ComPtr<ID3D12PipelineState>			pIPSOLine;
 
-	ComPtr<ID3D12CommandAllocator>		pICommandAllocator;
-	ComPtr<ID3D12GraphicsCommandList>	pICommandList;
+	ComPtr<ID3D12CommandAllocator>		pICMDAlloc;
+	ComPtr<ID3D12GraphicsCommandList>	pICMDList;
 	ComPtr<ID3D12CommandAllocator>		pICmdAllocQuad;
 	ComPtr<ID3D12GraphicsCommandList>	pICmdBundlesQuad;
 	ComPtr<ID3D12CommandAllocator>		pICmdAllocLine;
@@ -426,18 +426,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 枚举适配器，并选择合适的适配器来创建3D设备对象
 		{
-			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
+			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter1); ++adapterIndex)
 			{
-				DXGI_ADAPTER_DESC1 desc = {};
-				pIAdapter->GetDesc1(&desc);
+				DXGI_ADAPTER_DESC1 stAdapterDesc = {};
+				pIAdapter1->GetDesc1(&stAdapterDesc);
 
-				if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 				{//跳过软件虚拟适配器设备
 					continue;
 				}
 				//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
 				//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
-				if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
+				if (SUCCEEDED(D3D12CreateDevice(pIAdapter1.Get(), D3D_FEATURE_LEVEL_12_1, _uuidof(ID3D12Device), nullptr)))
 				{
 					break;
 				}
@@ -446,27 +446,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 创建D3D12.1的设备和直接命令队列
 		{
-			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3DDevice)));
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3D12Device4)));
 			D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
 			stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICommandQueue)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICMDQueue)));
 		}
 
 		// 创建命令列表分配器和命令列表
 		{
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
-				, IID_PPV_ARGS(&pICommandAllocator)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
-				, pICommandAllocator.Get(), nullptr, IID_PPV_ARGS(&pICommandList)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT
+				, IID_PPV_ARGS(&pICMDAlloc)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT
+				, pICMDAlloc.Get(), nullptr, IID_PPV_ARGS(&pICMDList)));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
 				, IID_PPV_ARGS(&pICmdAllocQuad)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
 				, pICmdAllocQuad.Get(), pIPSOQuad.Get(), IID_PPV_ARGS(&pICmdBundlesQuad)));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE
 				, IID_PPV_ARGS(&pICmdAllocLine)));
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE
 				, pICmdAllocLine.Get(), pIPSOLine.Get(), IID_PPV_ARGS(&pICmdBundlesLine)));
 		}
 
@@ -482,7 +482,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSwapChainDesc.SampleDesc.Count = 1;
 
 			GRS_THROW_IF_FAILED(pIDXGIFactory5->CreateSwapChainForHwnd(
-				pICommandQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
+				pICMDQueue.Get(),		// Swap chain needs the queue so that it can force a flush on it.
 				hWnd,
 				&stSwapChainDesc,
 				nullptr,
@@ -503,9 +503,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
 			//得到每个描述符元素的大小
-			nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 			//---------------------------------------------------------------------------------------------
 			//9、创建RTV的描述符
@@ -513,7 +513,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			for (UINT i = 0; i < nFrameBackBufCount; i++)
 			{
 				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
-				pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
+				pID3D12Device4->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
 				stRTVHandle.Offset(1, nRTVDescriptorSize);
 			}
 		}
@@ -526,14 +526,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 			//SRV堆
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pISRVHeap)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pISRVHeap)));
 
 			////CBV堆
-			//GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pICBVHeap)));
+			//GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pICBVHeap)));
 
 			//Sample堆
 			stHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pISampleHeap)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stHeapDesc, IID_PPV_ARGS(&pISampleHeap)));
 
 		}
 
@@ -542,7 +542,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			D3D12_FEATURE_DATA_ROOT_SIGNATURE stFeatureData = {};
 			// 检测是否支持V1.1版本的根签名
 			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-			if (FAILED(pID3DDevice->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
+			if (FAILED(pID3D12Device4->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
 			{
 				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 			}
@@ -571,7 +571,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, &pISignatureBlob
 				, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateRootSignature(0
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateRootSignature(0
 				, pISignatureBlob->GetBufferPointer()
 				, pISignatureBlob->GetBufferSize()
 				, IID_PPV_ARGS(&pIRSQuad)));
@@ -592,7 +592,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, &pISignatureBlob
 				, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateRootSignature(0
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateRootSignature(0
 				, pISignatureBlob->GetBufferPointer()
 				, pISignatureBlob->GetBufferSize()
 				, IID_PPV_ARGS(&pIRSLine)));
@@ -659,7 +659,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stPSODesc.BlendState.AlphaToCoverageEnable = TRUE;
 			stPSODesc.BlendState.RenderTarget[0] = stQuadTransparencyBlendDesc;
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateGraphicsPipelineState(&stPSODesc
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc
 				, IID_PPV_ARGS(&pIPSOQuad)));
 
 			//=============================================================================================
@@ -682,7 +682,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//关闭Alpha
 			stPSODesc.BlendState.AlphaToCoverageEnable = FALSE;
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateGraphicsPipelineState(&stPSODesc
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc
 				, IID_PPV_ARGS(&pIPSOLine)));
 
 		}
@@ -705,7 +705,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			nQuadVertexCnt = _countof(stTriangleVertices);
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Buffer(nVertexBufferSize),
@@ -736,7 +736,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			nLineVertexCnt = _countof(stLine);
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Buffer(nVertexBufferSize),
@@ -770,7 +770,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//创建默认堆上的资源，类型是Texture2D，GPU对默认堆资源的访问速度是最快的
 			//因为纹理资源一般是不易变的资源，所以我们通常使用上传堆复制到默认堆中
 			//在传统的D3D11及以前的D3D接口中，这些过程都被封装了，我们只能指定创建时的类型为默认堆 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
 				, D3D12_HEAP_FLAG_NONE
 				, &stTextureDesc				//可以使用CD3DX12_RESOURCE_DESC::Tex2D来简化结构体的初始化
@@ -785,7 +785,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 上传堆对于GPU访问来说性能是很差的，
 			// 所以对于几乎不变的数据尤其像纹理都是
 // 通过它来上传至GPU访问更高效的默认堆中
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Buffer(n64UploadBufferSize),
@@ -813,7 +813,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			UINT   nTextureRowNum = 0u;
 
 			D3D12_RESOURCE_DESC stDestDesc = pITexture->GetDesc();
-			pID3DDevice->GetCopyableFootprints(&stDestDesc
+			pID3D12Device4->GetCopyableFootprints(&stDestDesc
 				, 0
 				, 1
 				, 0
@@ -851,7 +851,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			CD3DX12_TEXTURE_COPY_LOCATION Dst(pITexture.Get(), 0);
 			CD3DX12_TEXTURE_COPY_LOCATION Src(pITextureUpload.Get(), stTxtLayouts);
-			pICommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+			pICMDList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
 
 			//设置一个资源屏障，同步并确认复制操作完成
 			//直接使用结构体然后调用的形式
@@ -863,37 +863,37 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stResBar.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 			stResBar.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
-			pICommandList->ResourceBarrier(1, &stResBar);
+			pICMDList->ResourceBarrier(1, &stResBar);
 
 		}
 
 		// 执行命令列表并等待纹理资源上传完成，这一步是必须的
 		{
-			GRS_THROW_IF_FAILED(pICommandList->Close());
-			ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
-			pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+			GRS_THROW_IF_FAILED(pICMDList->Close());
+			ID3D12CommandList* ppCommandLists[] = { pICMDList.Get() };
+			pICMDQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 			// 创建一个同步对象——围栏，用于等待渲染完成，因为现在Draw Call是异步的了
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pIFence)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pIFence)));
 			n64FenceValue = 1;
 
 			// 创建一个Event同步对象，用于等待围栏事件通知
-			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (hFenceEvent == nullptr)
+			hEventFence = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (hEventFence == nullptr)
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
 
 			// 等待纹理资源正式复制完成先
 			const UINT64 fence = n64FenceValue;
-			GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
+			GRS_THROW_IF_FAILED(pICMDQueue->Signal(pIFence.Get(), fence));
 			n64FenceValue++;
-			GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
+			GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
 		}
 
 		// 创建Const Buffer和CBV
 		{
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 				D3D12_HEAP_FLAG_NONE,
 				&CD3DX12_RESOURCE_DESC::Buffer(szCBBuf),
@@ -913,7 +913,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			stSRVDesc.Texture2D.MipLevels = 1;
 
-			pID3DDevice->CreateShaderResourceView(pITexture.Get(), &stSRVDesc, pISRVHeap->GetCPUDescriptorHandleForHeapStart());
+			pID3D12Device4->CreateShaderResourceView(pITexture.Get(), &stSRVDesc, pISRVHeap->GetCPUDescriptorHandleForHeapStart());
 
 			// CBV
 			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
@@ -922,10 +922,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle(pISRVHeap->GetCPUDescriptorHandleForHeapStart()
 				, 1
-				, pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+				, pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 
 
-			pID3DDevice->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
+			pID3D12Device4->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
 
 			// Sample View
 			D3D12_SAMPLER_DESC stSamplerDesc = {};
@@ -939,7 +939,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 
-			pID3DDevice->CreateSampler(&stSamplerDesc, pISampleHeap->GetCPUDescriptorHandleForHeapStart());
+			pID3D12Device4->CreateSampler(&stSamplerDesc, pISampleHeap->GetCPUDescriptorHandleForHeapStart());
 		}
 
 		//准备捆绑包
@@ -953,7 +953,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			CD3DX12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandle(pISRVHeap->GetGPUDescriptorHandleForHeapStart()
 				, 1
-				, pID3DDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+				, pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 
 			pICmdBundlesQuad->SetGraphicsRootDescriptorTable(1, stGPUCBVHandle);
 			pICmdBundlesQuad->SetGraphicsRootDescriptorTable(2, pISampleHeap->GetGPUDescriptorHandleForHeapStart());
@@ -1020,7 +1020,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{
-			dwRet = ::MsgWaitForMultipleObjects(1, &hFenceEvent, FALSE, INFINITE, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &hEventFence, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
@@ -1028,43 +1028,43 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
 				nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
 				//命令分配器先Reset一下
-				GRS_THROW_IF_FAILED(pICommandAllocator->Reset());
+				GRS_THROW_IF_FAILED(pICMDAlloc->Reset());
 				//Reset命令列表，并重新指定命令分配器和PSO对象
-				GRS_THROW_IF_FAILED(pICommandList->Reset(pICommandAllocator.Get(), pIPSOQuad.Get()));
+				GRS_THROW_IF_FAILED(pICMDList->Reset(pICMDAlloc.Get(), pIPSOQuad.Get()));
 
 				//开始记录命令
-				pICommandList->RSSetViewports(1, &stViewPort);
-				pICommandList->RSSetScissorRects(1, &stScissorRect);
+				pICMDList->RSSetViewports(1, &stViewPort);
+				pICMDList->RSSetScissorRects(1, &stScissorRect);
 
 				// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
-				pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+				pICMDList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nFrameIndex, nRTVDescriptorSize);
 				//设置渲染目标
-				pICommandList->OMSetRenderTargets(1, &stRTVHandle, FALSE, nullptr);
+				pICMDList->OMSetRenderTargets(1, &stRTVHandle, FALSE, nullptr);
 
 				// 继续记录命令，并真正开始新一帧的渲染
 				const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-				pICommandList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
+				pICMDList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
 				//---------------------------------------------------------------------------------------------
 				ID3D12DescriptorHeap* ppHeapsQuad[] = { pISRVHeap.Get(),pISampleHeap.Get() };
-				pICommandList->SetDescriptorHeaps(_countof(ppHeapsQuad), ppHeapsQuad);
-				pICommandList->ExecuteBundle(pICmdBundlesQuad.Get());
+				pICMDList->SetDescriptorHeaps(_countof(ppHeapsQuad), ppHeapsQuad);
+				pICMDList->ExecuteBundle(pICmdBundlesQuad.Get());
 
 				ID3D12DescriptorHeap* ppHeapsLine[] = { pISRVHeap.Get() };
-				pICommandList->SetDescriptorHeaps(_countof(ppHeapsLine), ppHeapsLine);
-				pICommandList->ExecuteBundle(pICmdBundlesLine.Get());
+				pICMDList->SetDescriptorHeaps(_countof(ppHeapsLine), ppHeapsLine);
+				pICMDList->ExecuteBundle(pICmdBundlesLine.Get());
 				//---------------------------------------------------------------------------------------------
 
 				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-				pICommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+				pICMDList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
 				//关闭命令列表，可以去执行了
-				GRS_THROW_IF_FAILED(pICommandList->Close());
+				GRS_THROW_IF_FAILED(pICMDList->Close());
 
 				//---------------------------------------------------------------------------------------------
 				//执行命令列表
-				ID3D12CommandList* ppCommandLists[] = { pICommandList.Get() };
-				pICommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+				ID3D12CommandList* ppCommandLists[] = { pICMDList.Get() };
+				pICMDQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 				//---------------------------------------------------------------------------------------------
 				//提交画面
@@ -1073,9 +1073,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				//---------------------------------------------------------------------------------------------
 				//开始同步GPU与CPU的执行，先记录围栏标记值
 				const UINT64 fence = n64FenceValue;
-				GRS_THROW_IF_FAILED(pICommandQueue->Signal(pIFence.Get(), fence));
+				GRS_THROW_IF_FAILED(pICMDQueue->Signal(pIFence.Get(), fence));
 				n64FenceValue++;
-				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hFenceEvent));
+				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
 			}
 			break;
 			case 1:

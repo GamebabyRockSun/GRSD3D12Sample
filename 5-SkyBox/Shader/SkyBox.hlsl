@@ -1,14 +1,12 @@
 
 
-cbuffer cbPerObject : register( b0 )
+cbuffer cbPerObject : register(b0)
 {
-    row_major matrix    g_mViewProjection;
-    row_major matrix    g_mWorld;
-    float4              g_v4EyePos;
+    row_major matrix    g_mWorldViewProjection;
 }
 
-TextureCube	g_EnvironmentTexture : register( t0 );
-SamplerState g_Sample : register( s0 );
+TextureCube	g_EnvironmentTexture : register(t0);
+SamplerState g_sam : register(s0);
 
 struct SkyboxVS_Input
 {
@@ -17,30 +15,21 @@ struct SkyboxVS_Input
 
 struct SkyboxVS_Output
 {
-    float4 vPos : POSITION;
-    float4 sPos : SV_POSITION;
+    float4 Pos : SV_POSITION;
+    float3 Tex : TEXCOORD0;
 };
 
-SkyboxVS_Output SkyboxVS( SkyboxVS_Input Input )
+SkyboxVS_Output SkyboxVS(SkyboxVS_Input Input)
 {
     SkyboxVS_Output Output;
-    
-    // Use local vertex position as cubemap lookup vector.
-    Output.vPos = Input.Pos;
 
-    // Transform to world space.
-    float4 posW = mul(Input.Pos, g_mWorld);
-
-    // Always center sky about camera.
-    posW.xyz += g_v4EyePos.xyz;
-
-    // Set z = w so that z/w = 1 (i.e., skydome always on far plane).
-    Output.sPos = mul(posW, g_mViewProjection).xyww;
+    Output.Pos = Input.Pos;
+    Output.Tex = normalize(mul(Input.Pos, g_mWorldViewProjection));
 
     return Output;
 }
 
-float4 SkyboxPS( SkyboxVS_Output Input ) : SV_TARGET
+float4 SkyboxPS(SkyboxVS_Output Input) : SV_TARGET
 {
-	return g_EnvironmentTexture.Sample(g_Sample, Input.vPos);
+    return g_EnvironmentTexture.Sample(g_sam, Input.Tex);
 }

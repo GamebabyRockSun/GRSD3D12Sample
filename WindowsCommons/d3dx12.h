@@ -1250,18 +1250,18 @@ struct CD3DX12_ROOT_SIGNATURE_DESC : public D3D12_ROOT_SIGNATURE_DESC
     }
 
     static inline void Init(
-        _Out_ D3D12_ROOT_SIGNATURE_DESC &desc,
+        _Out_ D3D12_ROOT_SIGNATURE_DESC &stAdapterDesc,
         UINT numParameters,
         _In_reads_opt_(numParameters) const D3D12_ROOT_PARAMETER* _pParameters,
         UINT numStaticSamplers = 0,
         _In_reads_opt_(numStaticSamplers) const D3D12_STATIC_SAMPLER_DESC* _pStaticSamplers = NULL,
         D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE)
     {
-        desc.NumParameters = numParameters;
-        desc.pParameters = _pParameters;
-        desc.NumStaticSamplers = numStaticSamplers;
-        desc.pStaticSamplers = _pStaticSamplers;
-        desc.Flags = flags;
+        stAdapterDesc.NumParameters = numParameters;
+        stAdapterDesc.pParameters = _pParameters;
+        stAdapterDesc.NumStaticSamplers = numStaticSamplers;
+        stAdapterDesc.pStaticSamplers = _pStaticSamplers;
+        stAdapterDesc.Flags = flags;
     }
 };
 
@@ -1544,19 +1544,19 @@ struct CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC : public D3D12_VERSIONED_ROOT_SIGNA
     }
 
     static inline void Init_1_0(
-        _Out_ D3D12_VERSIONED_ROOT_SIGNATURE_DESC &desc,
+        _Out_ D3D12_VERSIONED_ROOT_SIGNATURE_DESC &stAdapterDesc,
         UINT numParameters,
         _In_reads_opt_(numParameters) const D3D12_ROOT_PARAMETER* _pParameters,
         UINT numStaticSamplers = 0,
         _In_reads_opt_(numStaticSamplers) const D3D12_STATIC_SAMPLER_DESC* _pStaticSamplers = NULL,
         D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE)
     {
-        desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_0;
-        desc.Desc_1_0.NumParameters = numParameters;
-        desc.Desc_1_0.pParameters = _pParameters;
-        desc.Desc_1_0.NumStaticSamplers = numStaticSamplers;
-        desc.Desc_1_0.pStaticSamplers = _pStaticSamplers;
-        desc.Desc_1_0.Flags = flags;
+        stAdapterDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_0;
+        stAdapterDesc.Desc_1_0.NumParameters = numParameters;
+        stAdapterDesc.Desc_1_0.pParameters = _pParameters;
+        stAdapterDesc.Desc_1_0.NumStaticSamplers = numStaticSamplers;
+        stAdapterDesc.Desc_1_0.pStaticSamplers = _pStaticSamplers;
+        stAdapterDesc.Desc_1_0.Flags = flags;
     }
 
     inline void Init_1_1(
@@ -1570,19 +1570,19 @@ struct CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC : public D3D12_VERSIONED_ROOT_SIGNA
     }
 
     static inline void Init_1_1(
-        _Out_ D3D12_VERSIONED_ROOT_SIGNATURE_DESC &desc,
+        _Out_ D3D12_VERSIONED_ROOT_SIGNATURE_DESC &stAdapterDesc,
         UINT numParameters,
         _In_reads_opt_(numParameters) const D3D12_ROOT_PARAMETER1* _pParameters,
         UINT numStaticSamplers = 0,
         _In_reads_opt_(numStaticSamplers) const D3D12_STATIC_SAMPLER_DESC* _pStaticSamplers = NULL,
         D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE)
     {
-        desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-        desc.Desc_1_1.NumParameters = numParameters;
-        desc.Desc_1_1.pParameters = _pParameters;
-        desc.Desc_1_1.NumStaticSamplers = numStaticSamplers;
-        desc.Desc_1_1.pStaticSamplers = _pStaticSamplers;
-        desc.Desc_1_1.Flags = flags;
+        stAdapterDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+        stAdapterDesc.Desc_1_1.NumParameters = numParameters;
+        stAdapterDesc.Desc_1_1.pParameters = _pParameters;
+        stAdapterDesc.Desc_1_1.NumStaticSamplers = numStaticSamplers;
+        stAdapterDesc.Desc_1_1.pStaticSamplers = _pStaticSamplers;
+        stAdapterDesc.Desc_1_1.Flags = flags;
     }
 };
 

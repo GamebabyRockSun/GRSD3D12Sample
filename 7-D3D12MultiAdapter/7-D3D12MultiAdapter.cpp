@@ -268,7 +268,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		ComPtr<ID3D12DescriptorHeap>		pIDHSRVSecondary;
 		ComPtr<ID3D12DescriptorHeap>		pIDHSampleSecondary;
 
-		HANDLE								hFenceEvent = nullptr;
+		HANDLE								hEventFence = nullptr;
 		UINT64								n64CurrentFenceValue = 0;
 		UINT64								n64FenceValue = 1ui64;
 
@@ -513,8 +513,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			::CloseHandle(hFenceShared);
 			GRS_THROW_IF_FAILED(hrOpenSharedHandleResult);
 
-			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (hFenceEvent == nullptr)
+			hEventFence = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (hEventFence == nullptr)
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
@@ -1234,8 +1234,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			n64FenceValue++;
 			if (stGPUParams[nIDGPUSecondary].m_pIFence->GetCompletedValue() < n64CurrentFenceValue)
 			{
-				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
-				WaitForSingleObject(hFenceEvent, INFINITE);
+				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hEventFence));
+				WaitForSingleObject(hEventFence, INFINITE);
 			}
 		}
 
@@ -1311,7 +1311,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			n64CurrentFenceValue = n64FenceValue;
 			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pICmdQueue->Signal(stGPUParams[nIDGPUMain].m_pIFence.Get(), n64CurrentFenceValue));
 			n64FenceValue++;
-			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
+			GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hEventFence));
 	
 		}
 
@@ -1332,7 +1332,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//17、开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{//消息循环，将等待超时值设置为0，同时将定时性的渲染，改成了每次循环都渲染
-			dwRet = ::MsgWaitForMultipleObjects(1, &hFenceEvent, FALSE, INFINITE, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &hEventFence, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
@@ -1580,7 +1580,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					n64CurrentFenceValue = n64FenceValue;
 					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pICmdQueue->Signal(stGPUParams[nIDGPUSecondary].m_pIFence.Get(), n64CurrentFenceValue));
 					n64FenceValue++;
-					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hFenceEvent));
+					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUSecondary].m_pIFence->SetEventOnCompletion(n64CurrentFenceValue, hEventFence));
 				}
 			}
 			break;

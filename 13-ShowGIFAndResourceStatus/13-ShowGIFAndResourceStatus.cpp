@@ -1058,7 +1058,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			//使用纯COM方式创建WIC类厂对象，也是调用WIC第一步要做的事情
 			GRS_THROW_IF_FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&g_pIWICFactory)));
 			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
-			StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sMesh\\MM.gif"), g_pszAppPath);
+			StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sAssets\\MM.gif"), g_pszAppPath);
 
 			OPENFILENAME ofn;
 			RtlZeroMemory(&ofn, sizeof(ofn));
@@ -1072,7 +1072,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 			if (!GetOpenFileName(&ofn))
 			{
-				StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sMesh\\MM.gif"), g_pszAppPath);
+				StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sAssets\\MM.gif"), g_pszAppPath);
 			}
 
 			//只载入文件，但不生成纹理，在渲染循环中再生成纹理
@@ -1983,7 +1983,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			if (!GetOpenFileName(&ofn))
 			{
-				StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sMesh\\MM.gif"), g_pszAppPath);
+				StringCchPrintfW(g_pszTexcuteFileName, MAX_PATH, _T("%sAssets\\MM.gif"), g_pszAppPath);
 			}
 			else
 			{

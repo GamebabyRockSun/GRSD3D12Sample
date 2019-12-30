@@ -851,18 +851,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].m_pszDiffuseFile, MAX_PATH, _T("%sMesh\\Earth_512.dds"), g_pszAppPath);
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].m_pszNormalFile, MAX_PATH, _T("%sMesh\\Earth_512_Normal.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].m_pszDiffuseFile, MAX_PATH, _T("%sAssets\\Earth_512.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].m_pszNormalFile, MAX_PATH, _T("%sAssets\\Earth_512_Normal.dds"), g_pszAppPath);
 			g_stThreadParams[g_nThdSphere].m_v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdCube].m_pszDiffuseFile, MAX_PATH, _T("%sMesh\\Cube.dds"), g_pszAppPath);
-			StringCchPrintf(g_stThreadParams[g_nThdCube].m_pszNormalFile, MAX_PATH, _T("%sMesh\\Cube_NRM.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdCube].m_pszDiffuseFile, MAX_PATH, _T("%sAssets\\Cube.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdCube].m_pszNormalFile, MAX_PATH, _T("%sAssets\\Cube_NRM.dds"), g_pszAppPath);
 			g_stThreadParams[g_nThdCube].m_v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdPlane].m_pszDiffuseFile, MAX_PATH, _T("%sMesh\\Plane.dds"), g_pszAppPath);
-			StringCchPrintf(g_stThreadParams[g_nThdPlane].m_pszNormalFile, MAX_PATH, _T("%sMesh\\Plane_NRM.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdPlane].m_pszDiffuseFile, MAX_PATH, _T("%sAssets\\Plane.dds"), g_pszAppPath);
+			StringCchPrintf(g_stThreadParams[g_nThdPlane].m_pszNormalFile, MAX_PATH, _T("%sAssets\\Plane_NRM.dds"), g_pszAppPath);
 			g_stThreadParams[g_nThdPlane].m_v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 

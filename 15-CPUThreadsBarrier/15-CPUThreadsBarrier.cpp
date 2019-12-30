@@ -5,6 +5,7 @@
 #include <atlconv.h>
 #include <atlcoll.h>  //for atl array
 #include <strsafe.h>  //for StringCchxxxxx function
+#include <time.h>	// for time
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
 #define GRS_WND_TITLE	_T("GRS DirectX12 Multi Thread Shadow Sample")
@@ -46,17 +47,16 @@ struct ST_GRS_THREAD_PARAMS
 	HANDLE								m_hThisThread;
 	DWORD								m_dwMainThreadID;
 	HANDLE								m_hMainThread;
+	//当前渲染Pass的序号，当然如果你乐意，完全可以用更有意义的String来代替Pass的序号，使用map来关联Pass名称和对应的资源
+	UINT								m_nPassNO;					
+ };
 
-	//HANDLE								m_hRunEvent;
-
-	UINT								m_nStatus;					//当前渲染状态
-
-};
-
-const UINT								g_nMaxThread = 6;
+// 假设我们需要g_nMaxThread个渲染子线程，若需要动态调整就需要将渲染子线程参数用动态数组包装，如：CAtlArray、stl::vector等
+const UINT								g_nMaxThread = 4;
 ST_GRS_THREAD_PARAMS					g_stThreadParams[g_nMaxThread] = {};
-HANDLE									g_hEventShadowOver;
-HANDLE									g_hEventRenderOver;
+
+// 线程池管理内核同步对象
+HANDLE									g_hEventPassOver;
 HANDLE									g_hSemaphore;
 SYNCHRONIZATION_BARRIER					g_stCPUThdBarrier = {};
 
@@ -70,6 +70,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	int						iWndHeight = 768;
 	HWND					hWnd = nullptr;
 	MSG						msg = {};
+
+	UINT					nMaxPass = 5; //假设一帧渲染需要至少5遍渲染（5 Pass），可以根据你的渲染手法（technology）来动态调整
+	UINT					nPassNO = 0;    //当前渲染Pass的序号
+	UINT					nFrameCnt = 0; //总渲染帧数
 
 	CAtlArray<HANDLE>		arHWaited;
 	CAtlArray<HANDLE>		arHSubThread;
@@ -109,11 +113,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
+		// 创建用于CPU子渲染线程池的同步对象
 		{
-			g_hEventShadowOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			g_hEventRenderOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			// 通知线程池启动渲染的信标量，初始信标个数为0，最大信标个数即线程池线程个数
 			g_hSemaphore = ::CreateSemaphore(nullptr, 0, g_nMaxThread, nullptr);
-			InitializeSynchronizationBarrier(&g_stCPUThdBarrier, g_nMaxThread, -1);
+			if (!g_hSemaphore)
+			{
+				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
+			}
+			
+			// 线程池Pass渲染结束事件句柄
+			g_hEventPassOver = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (!g_hEventPassOver)
+			{
+				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			// 创建CPU线程屏障对象，允许进入的线程数即线程池线程个数
+			if (!InitializeSynchronizationBarrier(&g_stCPUThdBarrier, g_nMaxThread, -1))
+			{
+				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
+			}
 		}
 
 		// 启动多个渲染线程
@@ -122,10 +142,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 设置各线程的共性参数
 			for (int i = 0; i < g_nMaxThread; i++)
 			{
-				g_stThreadParams[i].m_nThreadIndex = i;		//记录序号
-				g_stThreadParams[i].m_nStatus = 0;
+				//编排线程序号，使得CPU线程池看上去像个GPU上的Computer Engine，每个线程都有序号
+				//当然如果你高兴，你也可以进一步模仿编排为GPU Thread Box的3D序号
+				g_stThreadParams[i].m_nThreadIndex = i;		
+				//初始化渲染遍数的序号为0，只要是渲染至少都应该有一遍渲染，不然启动渲染线程池干嘛？
+				g_stThreadParams[i].m_nPassNO = 0;			
 
-				//以暂停方式创建线程
+				//以暂停方式创建线程（线程的暂停创建方式是一种优雅的方式，看教程六搞明白为啥）
 				g_stThreadParams[i].m_hThisThread = (HANDLE)_beginthreadex(nullptr,
 					0, RenderThread, (void*)&g_stThreadParams[i],
 					CREATE_SUSPENDED, (UINT*)&g_stThreadParams[i].m_dwThisThreadID);
@@ -147,11 +170,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		//主消息循环状态变量:0，表示需要完成GPU上的第二个Copy动作 1、表示通知各线程去渲染 2、表示各线程渲染命令记录结束可以提交执行了
-		UINT nStates = 0; //初始状态为0
+		
 		DWORD dwRet = 0;
-		DWORD dwWaitCnt = 0;
-		UINT64 n64fence = 0;
 		BOOL bExit = FALSE;
 
 		// 创建一个计时器对象，模拟GPU渲染时的延时
@@ -160,100 +180,74 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		liDueTime.QuadPart = -1i64;//1秒后开始计时
 		SetWaitableTimer(hTimer, &liDueTime, 10, NULL, NULL, 0);
 
+		//这里添加定时器对象的意思表示模拟GPU进行第二遍Copy动作的延时
 		arHWaited.Add(hTimer);
 
 		// 初始化完了再显示窗口
 		ShowWindow(hWnd, nCmdShow);
 		UpdateWindow(hWnd);
+
+		//设置下随机数发生器种子
+		srand((unsigned)time(NULL));
+
 		GRS_PRINTF(_T("主线程开始消息循环:\n"));
+		
 		//15、开始主消息循环，并在其中不断渲染
 		while (!bExit)
 		{
 			//主线程进入等待
-			dwWaitCnt = static_cast<DWORD>(arHWaited.GetCount());
-			dwRet = ::MsgWaitForMultipleObjects(dwWaitCnt, arHWaited.GetData(), FALSE, INFINITE, QS_ALLINPUT);
+			// 注意这里 fWaitAll = FALSE了，
+			// 这样，实质上我们可以在arHWaited数组中添加任意其他需要等待的对象句柄
+			// 而被添加的句柄都可以单独促使MsgWaitForMultipleObjects返回
+			// 从而可以利用返回值精确高效的处理对应句柄表示的事件
+			// 如：Input、Music、Sound、Net、Video等等
+			dwRet = ::MsgWaitForMultipleObjects(static_cast<DWORD>(arHWaited.GetCount()), arHWaited.GetData(), FALSE, INFINITE, QS_ALLINPUT);
 			dwRet -= WAIT_OBJECT_0;
-
-			if (0 == dwRet)
+			switch (dwRet)
 			{
-				switch (nStates)
-				{
-				case 0://状态0，表示等到各子线程加载资源完毕，此时执行一次命令列表完成各子线程要求的资源上传的第二个Copy命令
-				{
-					nStates = 1;
-
+			case 0:
+			{
+				if ( nPassNO < nMaxPass )
+				{//
 					arHWaited.RemoveAll();
+					// 准备等待第n遍渲染结束
+					arHWaited.Add(g_hEventPassOver);
 
-					// 模拟等待GPU同步
-					arHWaited.Add(hTimer);
-					GRS_PRINTF(_T("主线程状态【0】，开始第一次执行命令列表，即完成资源上传显存的第二个Copy动作\n"));
-				}
-				break;
-				case 1:// 状态1 等到命令队列执行结束（也即CPU等到GPU执行结束），开始新一轮渲染
-				{
-					//OnUpdate()
-					{
-						GRS_PRINTF(_T("主线程状态【1】：OnUpdate()\n"));
-					}
-
-					nStates = 2;
-					arHWaited.RemoveAll();
-					// 准备等待阴影渲染结束
-					arHWaited.Add(g_hEventShadowOver);
-
-					GRS_PRINTF(_T("主线程状态【1】：通知子线程开始第一遍阴影渲染\n"));
+					GRS_PRINTF(_T("主线程通知子线程开始第【%d】遍渲染\n"), nPassNO);
 
 					//通知各线程开始渲染
 					for (int i = 0; i < g_nMaxThread; i++)
 					{
-						//设定渲染状态为渲染阴影
-						g_stThreadParams[i].m_nStatus = 1;
+						//设定子线程渲染Pass序号
+						g_stThreadParams[i].m_nPassNO = nPassNO;
 					}
-					// 释放信标量至最大子线程数，相当于通知所有子线程开始运行
+					// 释放信标量至最大子线程数，相当于通知所有子线程开始渲染运行
 					ReleaseSemaphore(g_hSemaphore, g_nMaxThread, nullptr);
+
+					GRS_PRINTF(_T("  主线程进行第【%d】遍渲染\n"), nPassNO);
+					// Sleep(20ms) 模拟主线程的第nPassNo遍渲染
+					GRS_SLEEP(20);
+
+					++nPassNO; //递增到下一遍渲染
 				}
-				break;
-				case 2:// 状态2 表示所有的渲染命令列表都记录完成了，开始后处理和执行命令列表
-				{
-					nStates = 3;
-
-					arHWaited.RemoveAll();
-					// 准备等待正常渲染结束
-					arHWaited.Add(g_hEventRenderOver);
-
-					GRS_PRINTF(_T("主线程状态【2】：通知子线程开始第二遍正常渲染\n"));
-
-					//通知各线程开始渲染
-					for (int i = 0; i < g_nMaxThread; i++)
-					{
-						//设定渲染状态为第二遍正常渲染
-						g_stThreadParams[i].m_nStatus = 2;
-					}
-					// 释放信标量至最大子线程数，相当于通知所有子线程开始运行
-					ReleaseSemaphore(g_hSemaphore, g_nMaxThread, nullptr);
-				}
-				break;
-				case 3:
-				{
-					nStates = 1;
-
+				else
+				{// 一帧渲染结束了，可以ExecuteCommandLists了
 					arHWaited.RemoveAll();
 					// 模拟等待GPU同步
 					arHWaited.Add(hTimer);
+					
+					// 接着你可以动态的调整下一帧需要的Pass数量，我们这里设置个5以内的随机数模拟这种情况
+					nMaxPass = rand() % 5 + 1;
+					nPassNO = 0;
 
-					GRS_PRINTF(_T("主线程状态【3】：按顺序执行所有的命令列表，并准备等待GPU渲染完成通知\n"));
-				}
-				break;
-				default:// 不可能的情况，但为了避免讨厌的编译警告或意外情况保留这个default
-				{
-					bExit = TRUE;
-				}
-				break;
+					GRS_PRINTF(_T("主线程完成第【%d】帧渲染，下一帧需要【%d】遍渲染\n"), nFrameCnt,nMaxPass);
+					++nFrameCnt;
 				}
 			}
-			else if( 1 == dwRet )
+			break;
+			case 1:
 			{
-				GRS_PRINTF(_T("主线程状态【%d】：处理消息\n"),nStates);
+				GRS_PRINTF(_T("主线程（第【%d】遍渲染中）：处理消息\n"), nPassNO);
 				//处理消息
 				while (::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE | PM_NOYIELD))
 				{
@@ -268,14 +262,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					}
 				}
 			}
-			else
+			break;
+			default:
 			{
 
-
+			}
+			break;
 			}
 
 			//---------------------------------------------------------------------------------------------
-			//检测一下线程的活动情况，如果有线程已经退出了，就退出循环
+			// 检测一下线程的活动情况，如果有线程已经退出了，就退出主线程循环
+			// 当然这个检测可以更灵活，不一定每次都检测，为了示例简洁性搞成这样，你可以设置n次循环后检查一次，或一帧结束后检查一次等等
+			// 另外也可以在这里伺机进行复杂的线程池伸缩（增减子线程数量操作）等，动态调整下一轮循环（或下一场景）需要的线程池线程数量等
 			dwRet = WaitForMultipleObjects(static_cast<DWORD>(arHSubThread.GetCount()), arHSubThread.GetData(), FALSE, 0);
 			dwRet -= WAIT_OBJECT_0;
 			if (dwRet >= 0 && dwRet < g_nMaxThread)
@@ -305,10 +303,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		// 清理所有子线程资源
 		for (int i = 0; i < g_nMaxThread; i++)
 		{
+			// 关闭子线程内核对象句柄
 			::CloseHandle(g_stThreadParams[i].m_hThisThread);
 		}
-
+		// 关闭信标量
 		::CloseHandle(g_hSemaphore);
+		// 删除CPU线程屏障
 		DeleteSynchronizationBarrier(&g_stCPUThdBarrier);
 		GRS_PRINTF(_T("各子线程全部退出，主线程清理资源后退出\n"));
 	}
@@ -327,8 +327,12 @@ UINT __stdcall RenderThread(void* pParam)
 	DWORD dwRet = 0;
 	BOOL  bQuit = FALSE;
 	MSG   msg = {};
-	TCHAR pszPreSpace[MAX_PATH] = {};
+
+	//子线程输出空两个空格
+	TCHAR pszPreSpace[] = _T("  ");
+	
 	GRS_USEPRINTF();
+	
 	try
 	{
 		if (nullptr == pThdPms)
@@ -336,10 +340,6 @@ UINT __stdcall RenderThread(void* pParam)
 			throw CGRSCOMException(E_INVALIDARG);
 		}
 
-		for (UINT i = 0; i <= pThdPms->m_nThreadIndex; i++)
-		{
-			pszPreSpace[i] = _T(' ');
-		}
 		GRS_PRINTF(_T("%s子线程【%d】开始进入渲染循环\n"), pszPreSpace,pThdPms->m_nThreadIndex);
 		//6、渲染循环
 		while (!bQuit)
@@ -350,68 +350,32 @@ UINT __stdcall RenderThread(void* pParam)
 			{
 			case 0:
 			{
-				switch (pThdPms->m_nStatus)
+				// OnUpdate()
 				{
-				case 1:
-				{
-					// OnUpdate()
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：OnUpdate()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-					}
-
-					// OnThreadRender()
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：OnThreadRender()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-					}
-
-					//延迟20毫秒，模拟子线程渲染运行
-					GRS_SLEEP(20);
-
-					//完成渲染（即关闭命令列表，并设置同步对象通知主线程开始执行）
-
-					if (EnterSynchronizationBarrier(&g_stCPUThdBarrier, 0))
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：通知主线程完成第一遍阴影渲染\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-
-						SetEvent(g_hEventShadowOver);
-					}
-				}
-				break;
-				case 2:
-				{
-					// OnUpdate()
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：OnUpdate()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-					}
-
-					// OnThreadRender()
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：OnThreadRender()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-					}
-					//完成渲染（即关闭命令列表，并设置同步对象通知主线程开始执行）
-
-					//延迟20毫秒，模拟子线程渲染运行
-					GRS_SLEEP(20);
-					
-					if (EnterSynchronizationBarrier(&g_stCPUThdBarrier, 0))
-					{
-						GRS_PRINTF(_T("%s子线程【%d】状态【%d】：通知主线程完成第二遍正常渲染\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
-						SetEvent(g_hEventRenderOver);
-					}
-				}
-				break;
-				default:
-				{
-
-				}
-				break;
+					GRS_PRINTF(_T("%s子线程【%d】执行第【%d】遍渲染：OnUpdate()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nPassNO);
 				}
 
+				// OnThreadRender()
+				{
+					GRS_PRINTF(_T("%s子线程【%d】执行第【%d】遍渲染：OnThreadRender()\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nPassNO);
+				}
+
+				//延迟20毫秒，模拟子线程渲染运行
+				GRS_SLEEP(20);
+
+				//完成渲染（即关闭命令列表，并设置同步对象通知主线程开始执行）
+
+				if (EnterSynchronizationBarrier(&g_stCPUThdBarrier, 0))
+				{
+					GRS_PRINTF(_T("%s子线程【%d】：通知主线程完成第【%d】遍渲染\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nPassNO);
+
+					SetEvent(g_hEventPassOver);
+				}
 			}
 			break;
 			case 1:
 			{//处理消息
-				GRS_PRINTF(_T("%s子线程【%d】状态【%d】：处理消息\n"), pszPreSpace, pThdPms->m_nThreadIndex, pThdPms->m_nStatus);
+				GRS_PRINTF(_T("%s子线程【%d】：处理消息\n"), pszPreSpace, pThdPms->m_nThreadIndex);
 				while (::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 				{//这里只可能是别的线程发过来的消息，用于更复杂的场景
 					if (WM_QUIT != msg.message)

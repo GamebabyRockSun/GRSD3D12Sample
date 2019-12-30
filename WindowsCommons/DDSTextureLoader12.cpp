@@ -1031,23 +1031,23 @@ namespace
             format = MakeSRGB(format);
         }
 
-        D3D12_RESOURCE_DESC desc = {};
-        desc.Width = static_cast<UINT>(width);
-        desc.Height = static_cast<UINT>(height);
-        desc.MipLevels = static_cast<UINT16>(mipCount);
-        desc.DepthOrArraySize = (resDim == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? static_cast<UINT16>(depth) : static_cast<UINT16>(arraySize);
-        desc.Format = format;
-        desc.Flags = resFlags;
-        desc.SampleDesc.Count = 1;
-        desc.SampleDesc.Quality = 0;
-        desc.Dimension = resDim;
+        D3D12_RESOURCE_DESC stAdapterDesc = {};
+        stAdapterDesc.Width = static_cast<UINT>(width);
+        stAdapterDesc.Height = static_cast<UINT>(height);
+        stAdapterDesc.MipLevels = static_cast<UINT16>(mipCount);
+        stAdapterDesc.DepthOrArraySize = (resDim == D3D12_RESOURCE_DIMENSION_TEXTURE3D) ? static_cast<UINT16>(depth) : static_cast<UINT16>(arraySize);
+        stAdapterDesc.Format = format;
+        stAdapterDesc.Flags = resFlags;
+        stAdapterDesc.SampleDesc.Count = 1;
+        stAdapterDesc.SampleDesc.Quality = 0;
+        stAdapterDesc.Dimension = resDim;
 
         CD3DX12_HEAP_PROPERTIES defaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 
         hr = d3dDevice->CreateCommittedResource(
             &defaultHeapProperties,
             D3D12_HEAP_FLAG_NONE,
-            &desc,
+            &stAdapterDesc,
             D3D12_RESOURCE_STATE_COPY_DEST,
             nullptr,
             IID_PPV_ARGS(texture));

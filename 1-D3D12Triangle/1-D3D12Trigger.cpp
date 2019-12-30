@@ -72,7 +72,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 
 	UINT64								n64FenceValue = 0ui64;
-	HANDLE								hFenceEvent = nullptr;
+	HANDLE								hEventFence = nullptr;
 
 	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f
 		, static_cast<float>(iWidth), static_cast<float>(iHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
@@ -82,8 +82,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	D3D_FEATURE_LEVEL					emFeatureLevel = D3D_FEATURE_LEVEL_12_1;
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
-	ComPtr<IDXGIAdapter1>				pIAdapter;
-	ComPtr<ID3D12Device4>				pID3DDevice;
+	ComPtr<IDXGIAdapter1>				pIAdapter1;
+	ComPtr<ID3D12Device4>				pID3D12Device4;
 	ComPtr<ID3D12CommandQueue>			pICMDQueue;
 	ComPtr<IDXGISwapChain1>				pISwapChain1;
 	ComPtr<IDXGISwapChain3>				pISwapChain3;
@@ -101,10 +101,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	{
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
-			if (MAX_PATH == nBytes)
+			if (0 == ::GetModuleFileName(nullptr, pszAppPath, MAX_PATH))
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			WCHAR* lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Exe文件名
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除x64路径
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Debug 或 Release路径
+				*(lastSlash + 1) = _T('\0');
 			}
 		}
 
@@ -174,32 +191,41 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 枚举适配器，并选择合适的适配器来创建3D设备对象
 		{
-			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter); ++adapterIndex)
+			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
+			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter1); ++adapterIndex)
 			{
-				DXGI_ADAPTER_DESC1 desc = {};
-				pIAdapter->GetDesc1(&desc);
+				pIAdapter1->GetDesc1(&stAdapterDesc);
 
-				if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 				{//跳过软件虚拟适配器设备
 					continue;
 				}
 				//检查适配器对D3D支持的兼容级别，这里直接要求支持12.1的能力，注意返回接口的那个参数被置为了nullptr，这样
 				//就不会实际创建一个设备了，也不用我们啰嗦的再调用release来释放接口。这也是一个重要的技巧，请记住！
-				if (SUCCEEDED(D3D12CreateDevice(pIAdapter.Get(), emFeatureLevel, _uuidof(ID3D12Device), nullptr)))
+				if (SUCCEEDED(D3D12CreateDevice(pIAdapter1.Get(), emFeatureLevel, _uuidof(ID3D12Device), nullptr)))
 				{
 					break;
 				}
 			}
 			// 创建D3D12.1的设备
-			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter.Get(), emFeatureLevel, IID_PPV_ARGS(&pID3DDevice)));
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get(), emFeatureLevel, IID_PPV_ARGS(&pID3D12Device4)));
+
+			TCHAR pszWndTitle[MAX_PATH] = {};
+			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
+			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
+			StringCchPrintf(pszWndTitle
+				, MAX_PATH
+				, _T("%s (GPU:%s)")
+				, pszWndTitle
+				, stAdapterDesc.Description);
+			::SetWindowText(hWnd, pszWndTitle);
 		}
 
 		// 创建直接命令队列
 		{
 			D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
 			stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandQueue(&stQueueDesc
-				, IID_PPV_ARGS(&pICMDQueue)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandQueue(&stQueueDesc, IID_PPV_ARGS(&pICMDQueue)));
 		}
 	
 		// 创建交换链
@@ -234,11 +260,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				stRTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 				stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
-				GRS_THROW_IF_FAILED(pID3DDevice->CreateDescriptorHeap(
+				GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(
 					&stRTVHeapDesc
 					, IID_PPV_ARGS(&pIRTVHeap)));
 				//得到每个描述符元素的大小
-				nRTVDescriptorSize = pID3DDevice->GetDescriptorHandleIncrementSize(
+				nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(
 					D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 			}
 
@@ -251,7 +277,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i
 						, IID_PPV_ARGS(&pIARenderTargets[i])));
 
-					pID3DDevice->CreateRenderTargetView(pIARenderTargets[i].Get()
+					pID3D12Device4->CreateRenderTargetView(pIARenderTargets[i].Get()
 						, nullptr
 						, stRTVHandle);
 
@@ -281,7 +307,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, &pISignatureBlob
 				, &pIErrorBlob));
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateRootSignature(0
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateRootSignature(0
 				, pISignatureBlob->GetBufferPointer()
 				, pISignatureBlob->GetBufferSize()
 				, IID_PPV_ARGS(&pIRootSignature)));
@@ -289,12 +315,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		//创建命令列表分配器
 		{
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandAllocator(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandAllocator(
 				D3D12_COMMAND_LIST_TYPE_DIRECT
 				, IID_PPV_ARGS(&pICMDAlloc)));
 
 			// 创建图形命令列表
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommandList(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandList(
 				0
 				, D3D12_COMMAND_LIST_TYPE_DIRECT
 				, pICMDAlloc.Get()
@@ -319,7 +345,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			TCHAR pszShaderFileName[MAX_PATH] = {};
 			StringCchPrintf(pszShaderFileName
 				, MAX_PATH
-				, _T("%s\\Shader\\shaders.hlsl")
+				, _T("%s1-D3D12Triangle\\Shader\\shaders.hlsl")
 				, pszAppPath);
 			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName
@@ -383,13 +409,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stPSODesc.DepthStencilState.DepthEnable = FALSE;
 			stPSODesc.DepthStencilState.StencilEnable = FALSE;
 
-			stPSODesc.SampleMask = UINT_MAX;
 			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
 			stPSODesc.NumRenderTargets = 1;
 			stPSODesc.RTVFormats[0] = emRenderTargetFormat;
+
+			stPSODesc.SampleMask = UINT_MAX;
 			stPSODesc.SampleDesc.Count = 1;
 
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateGraphicsPipelineState(&stPSODesc, IID_PPV_ARGS(&pIPipelineState)));
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc, IID_PPV_ARGS(&pIPipelineState)));
 		}
 
 		// 创建顶点缓冲
@@ -418,7 +446,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stResSesc.SampleDesc.Count		= 1;
 			stResSesc.SampleDesc.Quality	= 0;
 			
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateCommittedResource(
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&stHeapProp,
 				D3D12_HEAP_FLAG_NONE,
 				&stResSesc,
@@ -446,14 +474,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 创建一个同步对象——围栏，用于等待渲染完成，因为现在Draw Call是异步的了
 		{
-			GRS_THROW_IF_FAILED(pID3DDevice->CreateFence(0
+			GRS_THROW_IF_FAILED(pID3D12Device4->CreateFence(0
 				, D3D12_FENCE_FLAG_NONE
 				, IID_PPV_ARGS(&pIFence)));
 			n64FenceValue = 1;
 
 			// 创建一个Event同步对象，用于等待围栏事件通知
-			hFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (hFenceEvent == nullptr)
+			hEventFence = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (hEventFence == nullptr)
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
@@ -481,12 +509,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		BOOL bExit = FALSE;
 
 		GRS_THROW_IF_FAILED(pICMDList->Close());
-		SetEvent(hFenceEvent);
+		SetEvent(hEventFence);
 
 		// 开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{
-			dwRet = ::MsgWaitForMultipleObjects(1, &hFenceEvent, FALSE, INFINITE, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &hEventFence, FALSE, INFINITE, QS_ALLINPUT);
 			switch ( dwRet - WAIT_OBJECT_0 )
 			{
 			case 0:
@@ -540,7 +568,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				const UINT64 n64CurrentFenceValue = n64FenceValue;
 				GRS_THROW_IF_FAILED( pICMDQueue->Signal(pIFence.Get(), n64CurrentFenceValue) );
 				n64FenceValue++;
-				GRS_THROW_IF_FAILED( pIFence->SetEventOnCompletion( n64CurrentFenceValue, hFenceEvent) );
+				GRS_THROW_IF_FAILED( pIFence->SetEventOnCompletion( n64CurrentFenceValue, hEventFence) );
 			}
 			break;
 			case 1:

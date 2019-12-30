@@ -1180,7 +1180,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		// 加载DDS噪声纹理，注意用于后处理，所以加载到第二个显卡上
 		{ {
 				TCHAR pszNoiseTexture[MAX_PATH] = {};
-				StringCchPrintf(pszNoiseTexture, MAX_PATH, _T("%sMesh\\Noise1.dds"), pszAppPath);
+				StringCchPrintf(pszNoiseTexture, MAX_PATH, _T("%sAssets\\Noise1.dds"), pszAppPath);
 				std::unique_ptr<uint8_t[]>			pbDDSData;
 				std::vector<D3D12_SUBRESOURCE_DATA> stArSubResources;
 				DDS_ALPHA_MODE						emAlphaMode = DDS_ALPHA_MODE_UNKNOWN;
