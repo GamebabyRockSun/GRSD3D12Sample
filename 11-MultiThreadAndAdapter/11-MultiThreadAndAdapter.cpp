@@ -1238,18 +1238,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThread[g_nThdSphere].m_pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Earth_512.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThread[g_nThdSphere].m_pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThread[g_nThdSphere].m_pszDDSFile, MAX_PATH, _T("%sAssets\\Earth_512.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThread[g_nThdSphere].m_pszMeshFile, MAX_PATH, "%sAssets\\sphere.txt", T2A(g_pszAppPath));
 			g_stThread[g_nThdSphere].m_v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			StringCchPrintf(g_stThread[g_nThdCube].m_pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Cube.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThread[g_nThdCube].m_pszMeshFile, MAX_PATH, "%s\\Mesh\\Cube.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThread[g_nThdCube].m_pszDDSFile, MAX_PATH, _T("%sAssets\\Cube.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThread[g_nThdCube].m_pszMeshFile, MAX_PATH, "%sAssets\\Cube.txt", T2A(g_pszAppPath));
 			g_stThread[g_nThdCube].m_v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			StringCchPrintf(g_stThread[g_nThdPlane].m_pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Plane.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThread[g_nThdPlane].m_pszMeshFile, MAX_PATH, "%s\\Mesh\\Plane.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThread[g_nThdPlane].m_pszDDSFile, MAX_PATH, _T("%sAssets\\Plane.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThread[g_nThdPlane].m_pszMeshFile, MAX_PATH, "%sAssets\\Plane.txt", T2A(g_pszAppPath));
 			g_stThread[g_nThdPlane].m_v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 			// 多线程渲染时，第一遍渲染主要在主显卡上完成，所以为每个线程创建主显卡关联的命令列表

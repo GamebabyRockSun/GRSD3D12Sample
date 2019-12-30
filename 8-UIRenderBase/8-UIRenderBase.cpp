@@ -271,10 +271,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	{
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
-			if (MAX_PATH == nBytes)
+			if (0 == ::GetModuleFileName(nullptr, pszAppPath, MAX_PATH))
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			WCHAR* lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Exe文件名
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除x64路径
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Debug 或 Release路径
+				*(lastSlash + 1) = _T('\0');
 			}
 		}
 
@@ -285,7 +302,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			//使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
 			WCHAR pszTexcuteFileName[MAX_PATH] = {};
-			StringCchPrintf(pszTexcuteFileName, MAX_PATH, _T("%s\\Texture\\penny.png"), pszAppPath);
+			StringCchPrintf(pszTexcuteFileName, MAX_PATH, _T("%sAssets\\penny.png"), pszAppPath);
 			
 			GRS_THROW_IF_FAILED(pIWICFactory->CreateDecoderFromFilename(
 				pszTexcuteFileName,              // 文件名
@@ -399,9 +416,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				return FALSE;
 			}
-
-			ShowWindow(hWnd, nCmdShow);
-			UpdateWindow(hWnd);
 		}
 
 		// 打开显示子系统的调试支持
@@ -426,9 +440,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 枚举适配器，并选择合适的适配器来创建3D设备对象
 		{
+			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter1); ++adapterIndex)
 			{
-				DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 				pIAdapter1->GetDesc1(&stAdapterDesc);
 
 				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
@@ -442,6 +456,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					break;
 				}
 			}
+			TCHAR pszWndTitle[MAX_PATH] = {};
+			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
+			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
+			StringCchPrintf(pszWndTitle
+				, MAX_PATH
+				, _T("%s (GPU:%s)")
+				, pszWndTitle
+				, stAdapterDesc.Description);
+			::SetWindowText(hWnd, pszWndTitle);
 		}
 
 		// 创建D3D12.1的设备和直接命令队列
@@ -613,7 +636,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			nCompileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
 			TCHAR pszShaderFileName[MAX_PATH] = {};
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\Quad.hlsl"), pszAppPath);
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s8-UIRenderBase\\Shader\\Quad.hlsl"), pszAppPath);
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", nCompileFlags, 0, &pIBlobVertexShader, nullptr));
@@ -668,7 +691,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pIBlobPixelShader.Reset();
 
 			TCHAR pszShaderLines[MAX_PATH] = {};
-			StringCchPrintf(pszShaderLines, MAX_PATH, _T("%s\\Shader\\Lines.hlsl"), pszAppPath);
+			StringCchPrintf(pszShaderLines, MAX_PATH, _T("%s8-UIRenderBase\\Shader\\Lines.hlsl"), pszAppPath);
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderLines, nullptr, nullptr
 				, "VSMain", "vs_5_0", nCompileFlags, 0, &pIBlobVertexShader, nullptr));
@@ -1017,6 +1040,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		DWORD dwRet = 0;
 		BOOL bExit = FALSE;
+
+		ShowWindow(hWnd, nCmdShow);
+		UpdateWindow(hWnd);
+
 		//开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{

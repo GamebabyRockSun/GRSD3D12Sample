@@ -519,7 +519,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
 			TCHAR pszShaderFileName[MAX_PATH] = {};
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureCube.hlsl"), g_pszAppPath);
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s6-MultiThread\\Shader\\TextureCube.hlsl"), g_pszAppPath);
 			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIVSSphere, nullptr));
@@ -563,18 +563,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Assets\\sphere.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%s\\Assets\\sphere.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%sAssets\\sphere.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%sAssets\\sphere.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdCube].pszDDSFile, MAX_PATH, _T("%s\\Assets\\Cube.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdCube].pszMeshFile, MAX_PATH, "%s\\Assets\\Cube.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdCube].pszDDSFile, MAX_PATH, _T("%sAssets\\Cube.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdCube].pszMeshFile, MAX_PATH, "%sAssets\\Cube.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdCube].v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdPlane].pszDDSFile, MAX_PATH, _T("%s\\Assets\\Plane.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdPlane].pszMeshFile, MAX_PATH, "%s\\Assets\\Plane.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdPlane].pszDDSFile, MAX_PATH, _T("%sAssets\\Plane.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdPlane].pszMeshFile, MAX_PATH, "%sAssets\\Plane.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdPlane].v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 		

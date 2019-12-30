@@ -242,10 +242,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	{
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			UINT nBytes = GetCurrentDirectory(MAX_PATH, g_pszAppPath);
-			if (MAX_PATH == nBytes)
+			if (0 == ::GetModuleFileName(nullptr, g_pszAppPath, MAX_PATH))
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			WCHAR* lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Exe文件名
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除x64路径
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(g_pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Debug 或 Release路径
+				*(lastSlash + 1) = _T('\0');
 			}
 		}
 
@@ -280,9 +297,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
 			}
-
-			ShowWindow(hWnd, nCmdShow);
-			UpdateWindow(hWnd);
 		}
 
 		//2、打开显示子系统的调试支持
@@ -309,9 +323,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//4、枚举适配器创建设备
 		{//选择NUMA架构的独显来创建3D设备对象,暂时先不支持集显了，当然你可以修改这些行为
 			D3D12_FEATURE_DATA_ARCHITECTURE stArchitecture = {};
+			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 			for (UINT nAdapterIndex = 0; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(nAdapterIndex, &pIAdapter1); ++nAdapterIndex)
 			{
-				DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 				pIAdapter1->GetDesc1(&stAdapterDesc);
 
 				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
@@ -338,6 +352,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pID3D12Device4);
+
+			TCHAR pszWndTitle[MAX_PATH] = {};
+			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
+			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
+			StringCchPrintf(pszWndTitle
+				, MAX_PATH
+				, _T("%s (GPU:%s)")
+				, pszWndTitle
+				, stAdapterDesc.Description);
+			::SetWindowText(hWnd, pszWndTitle);
 		}
 
 		//5、创建直接命令队列
@@ -515,7 +539,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			compileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
 			TCHAR pszShaderFileName[MAX_PATH] = {};
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureCube.hlsl"), g_pszAppPath);
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s6-MultiThread\\Shader\\TextureCube.hlsl"), g_pszAppPath);
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", compileFlags, 0, &pIVSSphere, nullptr));
@@ -559,18 +583,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			USES_CONVERSION;
 			// 球体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\sphere.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdSphere].pszDDSFile, MAX_PATH, _T("%sAssets\\sphere.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdSphere].pszMeshFile, MAX_PATH, "%sAssets\\sphere.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdCube].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Cube.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdCube].pszMeshFile, MAX_PATH, "%s\\Mesh\\Cube.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdCube].pszDDSFile, MAX_PATH, _T("%sAssets\\Cube.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdCube].pszMeshFile, MAX_PATH, "%sAssets\\Cube.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdCube].v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			StringCchPrintf(g_stThreadParams[g_nThdPlane].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Plane.dds"), g_pszAppPath);
-			StringCchPrintfA(g_stThreadParams[g_nThdPlane].pszMeshFile, MAX_PATH, "%s\\Mesh\\Plane.txt", T2A(g_pszAppPath));
+			StringCchPrintf(g_stThreadParams[g_nThdPlane].pszDDSFile, MAX_PATH, _T("%sAssets\\Plane.dds"), g_pszAppPath);
+			StringCchPrintfA(g_stThreadParams[g_nThdPlane].pszMeshFile, MAX_PATH, "%sAssets\\Plane.txt", T2A(g_pszAppPath));
 			g_stThreadParams[g_nThdPlane].v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 
@@ -652,6 +676,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		SetTimer(hWnd, WM_USER + 100, 1, nullptr); //这句为了保证MsgWaitForMultipleObjects 在 wait for all 为True时 能够及时返回
 
+		ShowWindow(hWnd, nCmdShow);
+		UpdateWindow(hWnd);
+		
 		//13、开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{//注意这里我们调整了消息循环，将等待时间设置为0，同时将定时性的渲染，改成了每次循环都渲染

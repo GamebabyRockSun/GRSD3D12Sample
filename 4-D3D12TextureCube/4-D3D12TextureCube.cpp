@@ -879,21 +879,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			const UINT64 fence = n64FenceValue;
 			GRS_THROW_IF_FAILED(pICMDQueue->Signal(pIFence.Get(), fence));
 			n64FenceValue++;
-
-			//---------------------------------------------------------------------------------------------
-			// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-			if (pIFence->GetCompletedValue() < fence)
-			{
-				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
-				WaitForSingleObject(hEventFence, INFINITE);
-			}
-
-			//---------------------------------------------------------------------------------------------
-			//命令分配器先Reset一下，刚才已经执行过了一个复制纹理的命令
-			GRS_THROW_IF_FAILED(pICMDAlloc->Reset());
-			//Reset命令列表，并重新指定命令分配器和PSO对象
-			GRS_THROW_IF_FAILED(pICMDList->Reset(pICMDAlloc.Get(), pIPipelineState.Get()));
-			//---------------------------------------------------------------------------------------------
+			GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
 
 		}
 		
@@ -1109,13 +1095,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 		}
 		
-		//---------------------------------------------------------------------------------------------
-		//24、创建定时器对象，以便于创建高效的消息循环
-		HANDLE phWait = CreateWaitableTimer(NULL, FALSE, NULL);
-		LARGE_INTEGER liDueTime = {};
-		liDueTime.QuadPart = -1i64;//1秒后开始计时
-		SetWaitableTimer(phWait, &liDueTime, 1, NULL, NULL, 0);//40ms的周期
-
 		//25、记录帧开始时间，和当前时间，以循环结束为界
 		ULONGLONG n64tmFrameStart = ::GetTickCount64();
 		ULONGLONG n64tmCurrent = n64tmFrameStart;
@@ -1133,7 +1112,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		while (!bExit)
 		{//注意这里我们调整了消息循环，将等待时间设置为0，同时将定时性的渲染，改成了每次循环都渲染
 		 //但这不表示说MsgWait函数就没啥用了，坚持使用它是因为后面例子如果想加入多线程控制就非常简单了
-			dwRet = ::MsgWaitForMultipleObjects(1, &phWait, FALSE, INFINITE, QS_ALLINPUT);
+			dwRet = ::MsgWaitForMultipleObjects(1, &hEventFence, FALSE, INFINITE, QS_ALLINPUT);
 			switch (dwRet - WAIT_OBJECT_0)
 			{
 			case 0:
@@ -1167,6 +1146,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 				//---------------------------------------------------------------------------------------------
 
+				//命令分配器先Reset一下
+				GRS_THROW_IF_FAILED(pICMDAlloc->Reset());
+				//Reset命令列表，并重新指定命令分配器和PSO对象
+				GRS_THROW_IF_FAILED(pICMDList->Reset(pICMDAlloc.Get(), pIPipelineState.Get()));
+
+				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
+				nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
+
 				//---------------------------------------------------------------------------------------------
 				// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
 				pICMDList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
@@ -1182,7 +1169,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				// 继续记录命令，并真正开始新一帧的渲染
 				const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
 				pICMDList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
-
 
 				//---------------------------------------------------------------------------------------------
 				pICMDList->SetGraphicsRootSignature(pIRootSignature.Get());
@@ -1234,27 +1220,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				const UINT64 fence = n64FenceValue;
 				GRS_THROW_IF_FAILED(pICMDQueue->Signal(pIFence.Get(), fence));
 				n64FenceValue++;
-
-				//---------------------------------------------------------------------------------------------
-				// 看命令有没有真正执行到围栏标记的这里，没有就利用事件去等待，注意使用的是命令队列对象的指针
-				if (pIFence->GetCompletedValue() < fence)
-				{
-					GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
-					WaitForSingleObject(hEventFence, INFINITE);
-				}
-				//执行到这里说明一个命令队列完整的执行完了，在这里就代表我们的一帧已经渲染完了，接着准备执行下一帧渲染
-
-				//---------------------------------------------------------------------------------------------
-				//获取新的后缓冲序号，因为Present真正完成时后缓冲的序号就更新了
-				nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
-
-				//---------------------------------------------------------------------------------------------
-				//命令分配器先Reset一下
-				GRS_THROW_IF_FAILED(pICMDAlloc->Reset());
-				//Reset命令列表，并重新指定命令分配器和PSO对象
-				GRS_THROW_IF_FAILED(pICMDList->Reset(pICMDAlloc.Get(), pIPipelineState.Get()));
-
-				//GRS_TRACE(_T("第%u帧渲染结束.\n"), nFrame++);
+				GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(fence, hEventFence));
+		
 			}
 			break;
 			case 1:

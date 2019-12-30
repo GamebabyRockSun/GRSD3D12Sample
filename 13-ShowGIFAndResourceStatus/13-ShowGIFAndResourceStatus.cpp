@@ -409,8 +409,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 		D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 		D3D12_INDEX_BUFFER_VIEW				stIndexBufferView = {};
 			   
-
-
 		ST_GRS_GIF_FRAME					stGIFFrame = {};
 
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
@@ -514,6 +512,19 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			// 创建D3D12.1的设备
 			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&g_pID3D12Device4)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(g_pID3D12Device4);
+
+			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
+			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
+			
+			TCHAR pszWndTitle[MAX_PATH] = {};
+			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
+			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
+			StringCchPrintf(pszWndTitle
+				, MAX_PATH
+				, _T("%s (GPU:%s)")
+				, pszWndTitle
+				, stAdapterDesc.Description);
+			::SetWindowText(hWnd, pszWndTitle);
 		}
 
 		// 创建命令队列
@@ -987,7 +998,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			UINT* pnIndices = nullptr;
 			USES_CONVERSION;
 			CHAR pszMeshFileName[MAX_PATH] = {};
-			StringCchPrintfA(pszMeshFileName, MAX_PATH, "%s\\Mesh\\Cube.txt", T2A(g_pszAppPath));
+			StringCchPrintfA(pszMeshFileName, MAX_PATH, "%sAssets\\Cube.txt", T2A(g_pszAppPath));
 			//载入方块
 			LoadMeshVertex(pszMeshFileName, nVertexCnt, pstVertices, pnIndices);
 

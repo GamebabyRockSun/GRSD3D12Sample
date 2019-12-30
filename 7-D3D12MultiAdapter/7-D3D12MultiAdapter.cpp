@@ -275,10 +275,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
-			UINT nBytes = GetCurrentDirectory(MAX_PATH, pszAppPath);
-			if (MAX_PATH == nBytes)
+			if (0 == ::GetModuleFileName(nullptr, pszAppPath, MAX_PATH))
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			WCHAR* lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Exe文件名
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除x64路径
+				*(lastSlash) = _T('\0');
+			}
+
+			lastSlash = _tcsrchr(pszAppPath, _T('\\'));
+			if (lastSlash)
+			{//删除Debug 或 Release路径
+				*(lastSlash + 1) = _T('\0');
 			}
 		}
 
@@ -313,9 +330,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
 			}
-
-			ShowWindow(hWnd, nCmdShow);
-			UpdateWindow(hWnd);
 		}
 
 		// 打开显示子系统的调试支持
@@ -347,7 +361,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		 //，它里面用的就是序号0默认是集显1是独显然后按主次创建
 
 			D3D12_FEATURE_DATA_ARCHITECTURE stArchitecture = {};
-			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
+			DXGI_ADAPTER_DESC1 stAdapterDesc[nMaxGPUParams] = {};
 			IDXGIAdapter1*	pIAdapterTmp	= nullptr;
 			ID3D12Device4*	pID3DDeviceTmp	= nullptr;
 			IDXGIOutput*	pIOutput		= nullptr;
@@ -361,10 +375,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, IID_PPV_ARGS(&pIAdapterTmp)));
 				++i)
 			{
-				ZeroMemory(&stAdapterDesc, sizeof(DXGI_ADAPTER_DESC1));
-				GRS_THROW_IF_FAILED(pIAdapterTmp->GetDesc1(&stAdapterDesc));
+				GRS_THROW_IF_FAILED(pIAdapterTmp->GetDesc1(&stAdapterDesc[i]));
 
-				if (stAdapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+				if (stAdapterDesc[i].Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 				{//跳过软件虚拟适配器设备，
 				 //注释这个if判断，可以使用一个真实GPU和一个虚拟软适配器来看双GPU的示例
 					continue;
@@ -460,6 +473,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPUParams[nIDGPUMain].m_pID3DDevice);
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(stGPUParams[nIDGPUSecondary].m_pID3DDevice);
+
+			TCHAR pszWndTitle[MAX_PATH] = {};
+			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
+			StringCchPrintf(pszWndTitle
+				, MAX_PATH
+				, _T("%s(GPU[0]:%s & GPU[1]:%s)")
+				, pszWndTitle
+				, stAdapterDesc[nIDGPUMain].Description
+				, stAdapterDesc[nIDGPUSecondary].Description);
+			::SetWindowText(hWnd, pszWndTitle);
 		}
 
 		// 创建命令队列
@@ -862,7 +885,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			nShaderCompileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
 			TCHAR pszShaderFileName[MAX_PATH] = {};
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s\\Shader\\TextureModule.hlsl"), pszAppPath);
+			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s7-D3D12MultiAdapter\\Shader\\TextureModule.hlsl"), pszAppPath);
 
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
 				, "VSMain", "vs_5_0", nShaderCompileFlags, 0, &pIVSMain, nullptr));
@@ -904,7 +927,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//---------------------------------------------------------------------------------------------------
 			//用于渲染单位矩形的管道状态对象
 			TCHAR pszUnitQuadShader[MAX_PATH] = {};
-			StringCchPrintf(pszUnitQuadShader, MAX_PATH, _T("%s\\Shader\\UnitQuad.hlsl"), pszAppPath);
+			StringCchPrintf(pszUnitQuadShader, MAX_PATH, _T("%s7-D3D12MultiAdapter\\Shader\\UnitQuad.hlsl"), pszAppPath);
 			
 			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszUnitQuadShader, nullptr, nullptr
 				, "VSMain", "vs_5_0", nShaderCompileFlags, 0, &pIVSQuad, nullptr));
@@ -943,18 +966,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			USES_CONVERSION;
 			// 物体个性参数
-			StringCchPrintf(stModuleParams[nSphere].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\sphere.dds"), pszAppPath);
-			StringCchPrintfA(stModuleParams[nSphere].pszMeshFile, MAX_PATH, "%s\\Mesh\\sphere.txt", T2A(pszAppPath));
+			StringCchPrintf(stModuleParams[nSphere].pszDDSFile, MAX_PATH, _T("%sAssets\\sphere.dds"), pszAppPath);
+			StringCchPrintfA(stModuleParams[nSphere].pszMeshFile, MAX_PATH, "%sAssets\\sphere.txt", T2A(pszAppPath));
 			stModuleParams[nSphere].v4ModelPos = XMFLOAT4(2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 立方体个性参数
-			StringCchPrintf(stModuleParams[nCube].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Cube.dds"), pszAppPath);
-			StringCchPrintfA(stModuleParams[nCube].pszMeshFile, MAX_PATH, "%s\\Mesh\\Cube.txt", T2A(pszAppPath));
+			StringCchPrintf(stModuleParams[nCube].pszDDSFile, MAX_PATH, _T("%sAssets\\Cube.dds"), pszAppPath);
+			StringCchPrintfA(stModuleParams[nCube].pszMeshFile, MAX_PATH, "%sAssets\\Cube.txt", T2A(pszAppPath));
 			stModuleParams[nCube].v4ModelPos = XMFLOAT4(-2.0f, 2.0f, 0.0f, 1.0f);
 
 			// 平板个性参数
-			StringCchPrintf(stModuleParams[nPlane].pszDDSFile, MAX_PATH, _T("%s\\Mesh\\Plane.dds"), pszAppPath);
-			StringCchPrintfA(stModuleParams[nPlane].pszMeshFile, MAX_PATH, "%s\\Mesh\\Plane.txt", T2A(pszAppPath));
+			StringCchPrintf(stModuleParams[nPlane].pszDDSFile, MAX_PATH, _T("%sAssets\\Plane.dds"), pszAppPath);
+			StringCchPrintfA(stModuleParams[nPlane].pszMeshFile, MAX_PATH, "%sAssets\\Plane.txt", T2A(pszAppPath));
 			stModuleParams[nPlane].v4ModelPos = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
 
 			// Mesh Value
@@ -1329,6 +1352,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		DWORD dwRet = 0;
 		BOOL bExit = FALSE;
+
+		ShowWindow(hWnd, nCmdShow);
+		UpdateWindow(hWnd);
+
 		//17、开始消息循环，并在其中不断渲染
 		while (!bExit)
 		{//消息循环，将等待超时值设置为0，同时将定时性的渲染，改成了每次循环都渲染
