@@ -214,7 +214,7 @@ XMFLOAT3 g_f3EyePos = XMFLOAT3(0.0f, 2.0f, -10.0f); //眼睛位置
 XMFLOAT3 g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
 XMFLOAT3 g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
 
-float g_fYaw = 0.0f;				// 绕正Z轴的旋转量.
+float g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
 float g_fPitch = 0.0f;			// 绕XZ平面的旋转量
 
 double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
@@ -236,8 +236,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	MSG									msg = {};
 	TCHAR								pszAppPath[MAX_PATH] = {};
 
-	ST_GRS_FRAME_MVP_BUFFER* pMVPBufEarth = nullptr;
-	ST_GRS_FRAME_MVP_BUFFER* pMVPBufSkybox = nullptr;
+	ST_GRS_FRAME_MVP_BUFFER*			pMVPBufEarth = nullptr;
+
+	ST_GRS_FRAME_MVP_BUFFER*			pMVPBufSkybox = nullptr;
 	//常量缓冲区大小上对齐到256Bytes边界
 	SIZE_T								szMVPBuf = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
 
@@ -983,7 +984,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		// 使用DDSLoader辅助函数加载Skybox的纹理
 		{
 			TCHAR pszSkyboxTextureFile[MAX_PATH] = {};
-			StringCchPrintf(pszSkyboxTextureFile, MAX_PATH, _T("%sAssets\\sky_cube.dds"), pszAppPath);
+			//使用“Assets\\sky_cube.dds”时需要XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1)乘以xmView
+			StringCchPrintf(pszSkyboxTextureFile, MAX_PATH, _T("%sAssets\\Sky_cube_1024.dds"), pszAppPath);
 
 			ID3D12Resource* pIResSkyBox = nullptr;
 			GRS_THROW_IF_FAILED(LoadDDSTextureFromFile(
@@ -1462,8 +1464,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 					XMMATRIX xmProj = XMMatrixPerspectiveFovLH(XM_PIDIV4
 						, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 1.0f, 20000.0f);
-
-					XMMATRIX xmSkyBox = XMMatrixMultiply(XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1), xmView);
+					//使用“Assets\\sky_cube.dds”时需要XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1)乘以xmView
+					XMMATRIX xmSkyBox = xmView;// XMMatrixMultiply(XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1), xmView);
 					xmSkyBox = XMMatrixMultiply(xmSkyBox, xmProj);
 					xmSkyBox = XMMatrixInverse(nullptr, xmSkyBox);
 					//设置Skybox的MVP

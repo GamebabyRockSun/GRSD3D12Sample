@@ -2070,7 +2070,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				if ( WAIT_OBJECT_0 == dwRet )
 				{
 					SetEvent(g_hEventFence);
-				}				
+				}
 			}
 		}
 		

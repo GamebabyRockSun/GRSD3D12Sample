@@ -43,11 +43,11 @@ float3 CalcPerPixelNormal(float2 vTexcoord, float3 vVertNormal, float3 vVertTang
     vVertNormal = normalize(vVertNormal);
     vVertTangent = normalize(vVertTangent);
 
-    float3 vVertBinormal = normalize(cross(vVertTangent, vVertNormal));
+    float3 vVertBinormal = normalize(cross(vVertNormal,vVertTangent));
     // 生成切空间变换矩阵（逆矩阵就是从世界空间变换到切线空间）
-    float3x3 mTangentSpaceToWorldSpace = float3x3(vVertTangent, vVertBinormal, vVertNormal);
+    float3x3 mTangentSpaceToWorldSpace = float3x3(vVertTangent, vVertNormal,  vVertBinormal);
 
-    //mTangentSpaceToWorldSpace = transpose(mTangentSpaceToWorldSpace);
+    mTangentSpaceToWorldSpace = transpose(mTangentSpaceToWorldSpace);
 
     // 采样逐像素法线
     float3 vBumpNormal = (float3)g_t2dNormalMap.Sample(g_SampleWrap, vTexcoord);
@@ -145,10 +145,33 @@ float4 PSMain(PSInput input) : SV_TARGET
         totalLight += lightPass;
     }
 
-    //float4 vLightSpacePos = input.v4WorldPosition;
-    //vLightSpacePos = mul(vLightSpacePos, stLights[0].mxView);
-    //vLightSpacePos = mul(vLightSpacePos, stLights[0].mxProjection);
-    //vLightSpacePos.xyz /= vLightSpacePos.w;
+    //return float4(pixelNormal, 1.0f);
+
+    float4 vLightSpacePos = input.v4WorldPosition;
+    vLightSpacePos = mul(vLightSpacePos, stLights[0].mxView);
+    vLightSpacePos = mul(vLightSpacePos, stLights[0].mxProjection);
+    vLightSpacePos.xyz /= vLightSpacePos.w;
+
+    float2 v2LightCoord = 0.5f * vLightSpacePos.xy + 0.5f;
+    v2LightCoord.y = 1.0f - v2LightCoord.y;
+    float4 fPixelColor = diffuseColor;
+    float fDepthValue = g_t2dShadowMap.Sample(g_SampleClamp, v2LightCoord);
+    vLightSpacePos.z -= 0.05f;
+    if ( vLightSpacePos.z < fDepthValue )
+    {
+        fPixelColor += v4AmbientColor;
+        //float lightIntensity = saturate(-dot(pixelNormal.xyz, stLights[0].v4Direction.xyz));
+        //if ( lightIntensity > 0.0f )
+        //{
+    
+        //    fPixelColor += (diffuseColor * lightIntensity);
+        //}
+    }
+    else
+    {
+        fPixelColor -= v4AmbientColor;
+    }
+     return fPixelColor;
     //return float4(vLightSpacePos.z, vLightSpacePos.z, vLightSpacePos.z, 1.0f);
 
     //return vLightSpacePos;

@@ -1138,7 +1138,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			for (int i = 0; i < GRS_NUM_LIGHTS; i++)
 			{
 				g_pstLights->m_stLights[i].m_v4Position = { 0.0f, 10.0f, -15.0f, 1.0f };
-				g_pstLights->m_stLights[i].m_v4Direction = { 0.0, 0.0f, 1.0f, 0.0f };
+				g_pstLights->m_stLights[i].m_v4Direction = { 0.0, -1.0f, 1.0f, 0.0f };
 				g_pstLights->m_stLights[i].m_v4Falloff = { 80.0f, 1.0f, 0.0f, 1.0f };
 				g_pstLights->m_stLights[i].m_v4Color = { 0.9f, 0.9f, 0.9f, 1.0f };
 
@@ -1321,6 +1321,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						//XMStoreFloat4x4(&g_mxWorld, XMMatrixRotationY(static_cast<float>(dModelRotationYAngle)));
 						
 						XMStoreFloat4x4(&g_mxWorld, XMMatrixIdentity());
+						
 						// 变换光源
 						for (int i = 0; i < GRS_NUM_LIGHTS; i++)
 						{
@@ -1399,7 +1400,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				{
 					// OnUpdate() 恢复View Projection 矩阵到摄像机空间
 					{
-						
+						//计算 World 矩阵 这里是个旋转矩阵
+						//XMStoreFloat4x4(&g_mxWorld, XMMatrixRotationY(static_cast<float>(dModelRotationYAngle)));
+
 						//计算 摄像机空间视矩阵 view
 						XMStoreFloat4x4(&g_mxView
 							, XMMatrixLookAtLH(
@@ -1873,6 +1876,9 @@ UINT __stdcall RenderThread(void* pParam)
 		float fUp = 1.0f;
 		float fRawYPos = pThdPms->m_v4ModelPos.y;
 
+		//计算旋转角度需要的变量
+		double dModelRotationYAngle = 0.0f;
+		
 		DWORD dwRet = 0;
 		BOOL  bQuit = FALSE;
 		MSG   msg = {};
@@ -1894,12 +1900,14 @@ UINT __stdcall RenderThread(void* pParam)
 					//注意只更新一次场景，后面两遍渲染都用相同的常量缓冲了
 					// OnUpdate()
 					{
+						// 计算平移矩阵（物体相对于世界空间的位置）
+						mxPosModule = XMMatrixTranslationFromVector(XMLoadFloat4(&pThdPms->m_v4ModelPos));
+
 						//==============================================================================
 						//使用主线程更新的统一帧时间更新下物体的物理状态等，这里仅演示球体上下跳动的样子
 						//启发式的向大家说明利用多线程渲染时，物理变换可以在不同的线程中，并且在不同的CPU上并行的执行
-
 						if (g_nThdSphere == pThdPms->m_nThreadIndex)
-						{
+						{// 球体多一个弹跳
 							if (pThdPms->m_v4ModelPos.y >= 2.0f * fRawYPos)
 							{
 								fUp = -1.0f;
@@ -1917,14 +1925,24 @@ UINT __stdcall RenderThread(void* pParam)
 							mxPosModule = XMMatrixTranslationFromVector(XMLoadFloat4(&pThdPms->m_v4ModelPos));
 						}
 						//==============================================================================
+						
+						//计算旋转角度
+						dModelRotationYAngle += ((pThdPms->m_nCurrentTime - pThdPms->m_nStartTime) / 1000.0f) * g_fPalstance;
 
+						//旋转角度是2PI周期的倍数，去掉周期数，只留下相对0弧度开始的小于2PI的弧度即可
+						if (dModelRotationYAngle > XM_2PI)
+						{
+							dModelRotationYAngle = fmod(dModelRotationYAngle, XM_2PI);
+						}
+						// 计算相对于世界矩阵Y轴的旋转矩阵
+						XMMATRIX xmRot = XMMatrixRotationY(static_cast<float>(dModelRotationYAngle));
+
+						// 平移->旋转
+						mxPosModule = XMMatrixMultiply(mxPosModule, xmRot);
 						// Module * World
-						XMMATRIX xmMW = XMMatrixMultiply(mxPosModule, XMLoadFloat4x4(&g_mxWorld));
+						mxPosModule = XMMatrixMultiply(mxPosModule, XMLoadFloat4x4(&g_mxWorld));
 
-						// (Module * World) * View * Projection
-						// xmMW = XMMatrixMultiply(xmMW, XMLoadFloat4x4(&g_mxWorld));
-
-						XMStoreFloat4x4(&pMVPBufModule->g_mxModel, xmMW);
+						XMStoreFloat4x4(&pMVPBufModule->g_mxModel, mxPosModule);
 
 						pMVPBufModule->g_mxView = g_mxView;
 						pMVPBufModule->g_mxProjection = g_mxProjection;

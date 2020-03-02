@@ -52,7 +52,7 @@ struct ST_GRS_THREAD_PARAMS
  };
 
 // 假设我们需要g_nMaxThread个渲染子线程，若需要动态调整就需要将渲染子线程参数用动态数组包装，如：CAtlArray、stl::vector等
-const UINT								g_nMaxThread = 4;
+const UINT								g_nMaxThread = 64;
 ST_GRS_THREAD_PARAMS					g_stThreadParams[g_nMaxThread] = {};
 
 // 线程池管理内核同步对象
@@ -170,7 +170,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			}
 		}
 
-		
 		DWORD dwRet = 0;
 		BOOL bExit = FALSE;
 
