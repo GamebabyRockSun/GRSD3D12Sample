@@ -264,9 +264,11 @@ struct ST_GRS_FRAME_MVP_BUFFER
 
 struct ST_GRS_GIF_FRAME_PARAM
 {
+	XMFLOAT4 m_c4BkColor;
+	UINT	 m_nLeftTop[2];
+	UINT	 m_nFrameWH[2];
 	UINT	 m_nFrame;
 	UINT 	 m_nDisposal;
-	XMFLOAT4 m_c4BkColor;
 };
 
 enum EM_GRS_DISPOSAL_METHODS
@@ -306,7 +308,9 @@ struct ST_GRS_GIF_FRAME
 	DXGI_FORMAT						m_enTextureFormat;
 	UINT							m_nFrameDisposal;
 	UINT							m_nFrameDelay;
-	ST_GRS_RECT_F					m_rtGIFFrame;
+	UINT						    m_nLeftTop[2];
+	UINT							m_nFrameWH[2];
+	//ST_GRS_RECT_F					m_rtGIFFrame;
 };
 //--------------------------------------------------------------------------------------------------
 
@@ -392,7 +396,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 		ComPtr<ID3D12Resource>				pITexture;
 		ComPtr<ID3D12Resource>				pITextureUpload;
 		ComPtr<ID3D12DescriptorHeap>		pISRVHeap;
-
 
 		ComPtr<ID3D12Resource>				pICBGIFFrameInfo; // Computer Shader Const Buffer 
 
@@ -1284,6 +1287,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 							, GRS_ARGB_A(g_stGIF.m_nBkColor));
 						pstGIFFrameInfo->m_nFrame = g_stGIF.m_nCurrentFrame;
 						pstGIFFrameInfo->m_nDisposal = stGIFFrame.m_nFrameDisposal;
+						
+						pstGIFFrameInfo->m_nLeftTop[0] = stGIFFrame.m_nLeftTop[0];	//Frame Image Left
+						pstGIFFrameInfo->m_nLeftTop[1] = stGIFFrame.m_nLeftTop[1];	//Frame Image Top
+						pstGIFFrameInfo->m_nFrameWH[0] = stGIFFrame.m_nFrameWH[0];	//Frame Image Width
+						pstGIFFrameInfo->m_nFrameWH[1] = stGIFFrame.m_nFrameWH[1];	//Frame Image Height
 
 						D3D12_SHADER_RESOURCE_VIEW_DESC stSRVDesc = {};
 						stSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1339,7 +1347,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 						pICSList->SetComputeRootDescriptorTable(2, stSRVGPUHandle);
 
 						// Computer!
-						pICSList->Dispatch(g_stGIF.m_nWidth, g_stGIF.m_nHeight, 1);
+						// 注意：按子帧大小来发起计算线程
+						pICSList->Dispatch(stGIFFrame.m_nFrameWH[0], stGIFFrame.m_nFrameWH[1],1);
+						//pICSList->Dispatch(g_stGIF.m_nWidth, g_stGIF.m_nHeight, 1);
 
 						// 开始计算管线运行
 						D3D12_RESOURCE_BARRIER stRWResEndBarrier = {};
@@ -1673,7 +1683,7 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 		{
 			if (VT_UI2 == stCOMPropValue.vt)
 			{
-				stGIFFrame.m_rtGIFFrame.m_fLeft = static_cast<FLOAT>(stCOMPropValue.uiVal);
+				stGIFFrame.m_nLeftTop[0] = static_cast<UINT>(stCOMPropValue.uiVal);
 			}
 		}
 		PropVariantClear(&stCOMPropValue);
@@ -1682,7 +1692,7 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 		{
 			if (VT_UI2 == stCOMPropValue.vt)
 			{
-				stGIFFrame.m_rtGIFFrame.m_fTop = static_cast<FLOAT>(stCOMPropValue.uiVal);
+				stGIFFrame.m_nLeftTop[1] = static_cast<UINT>(stCOMPropValue.uiVal);
 			}
 		}
 		PropVariantClear(&stCOMPropValue);
@@ -1691,8 +1701,7 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 		{
 			if (VT_UI2 == stCOMPropValue.vt)
 			{
-				stGIFFrame.m_rtGIFFrame.m_fRight = static_cast<FLOAT>(stCOMPropValue.uiVal)
-					+ stGIFFrame.m_rtGIFFrame.m_fLeft;
+				stGIFFrame.m_nFrameWH[0] = static_cast<UINT>(stCOMPropValue.uiVal);
 			}
 		}
 		PropVariantClear(&stCOMPropValue);
@@ -1701,8 +1710,7 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 		{
 			if (VT_UI2 == stCOMPropValue.vt)
 			{
-				stGIFFrame.m_rtGIFFrame.m_fBottom = static_cast<FLOAT>(stCOMPropValue.uiVal)
-					+ stGIFFrame.m_rtGIFFrame.m_fTop;
+				stGIFFrame.m_nFrameWH[1] = static_cast<UINT>(stCOMPropValue.uiVal);
 			}
 		}
 		PropVariantClear(&stCOMPropValue);
@@ -1751,6 +1759,11 @@ BOOL UploadGIFFrame(ID3D12Device4* pID3D12Device4, ID3D12GraphicsCommandList* pI
 		//获得图片大小（单位：像素）
 		GRS_THROW_IF_FAILED(stGIFFrame.m_pIWICGIFFrameBMP->GetSize(&nTextureW, &nTextureH));
 
+		if (nTextureW != stGIFFrame.m_nFrameWH[0] || nTextureH != stGIFFrame.m_nFrameWH[1])
+		{//从属性解析出的帧画面大小与转换后的画面大小不一致
+			throw CGRSCOMException(S_FALSE);
+		}
+		
 		//获取图片像素的位大小的BPP（Bits Per Pixel）信息，用以计算图片行数据的真实大小（单位：字节）
 		ComPtr<IWICComponentInfo> pIWICmntinfo;
 		WICPixelFormatGUID stGuidTargetFormat = {};

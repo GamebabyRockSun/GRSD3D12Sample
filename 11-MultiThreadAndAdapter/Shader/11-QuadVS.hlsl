@@ -1,4 +1,3 @@
-//Ë®²Ê»­Ð§¹ûShader
 struct PSInput
 {
 	float4 m_v4Pos	: SV_POSITION;

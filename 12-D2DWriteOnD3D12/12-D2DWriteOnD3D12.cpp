@@ -335,7 +335,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	ComPtr<ID3D12Resource>				pIVBQuadUpload;
 	D3D12_VERTEX_BUFFER_VIEW			pstVBVQuad;
 	SIZE_T								szSecondPassCB = GRS_UPPER(sizeof(ST_GRS_PEROBJECT_CB), 256);
-	ST_GRS_PEROBJECT_CB* pstCBSecondPass = nullptr;
+	ST_GRS_PEROBJECT_CB*				pstCBSecondPass = nullptr;
 	ComPtr<ID3D12Resource>				pICBResSecondPass;
 	ComPtr<ID3D12Resource>				pINoiseTexture;
 	ComPtr<ID3D12Resource>				pINoiseTextureUpload;

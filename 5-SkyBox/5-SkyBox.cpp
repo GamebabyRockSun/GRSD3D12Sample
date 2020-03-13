@@ -1463,7 +1463,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						, XMLoadFloat3(&g_f3HeapUp));
 
 					XMMATRIX xmProj = XMMatrixPerspectiveFovLH(XM_PIDIV4
-						, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 1.0f, 20000.0f);
+						, (FLOAT)iWndWidth / (FLOAT)iWndHeight, 1.0f, 2000.0f);
 					//使用“Assets\\sky_cube.dds”时需要XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1)乘以xmView
 					XMMATRIX xmSkyBox = xmView;// XMMatrixMultiply(XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1), xmView);
 					xmSkyBox = XMMatrixMultiply(xmSkyBox, xmProj);
