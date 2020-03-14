@@ -28,7 +28,8 @@ void ShowGIFCS( uint3 n3ThdID : SV_DispatchThreadID)
 
 	if ( 0 == m_nDisposal )
 	{//DM_NONE 不清理背景
-		g_tPaint[ m_nLeftTop.xy + n3ThdID.xy ] = g_tGIFFrame[n3ThdID.xy];
+		g_tPaint[m_nLeftTop.xy + n3ThdID.xy]
+			= g_tGIFFrame[n3ThdID.xy].w ? g_tGIFFrame[n3ThdID.xy] : g_tPaint[m_nLeftTop.xy + n3ThdID.xy];
 	}
 	else if (1 == m_nDisposal)
 	{//DM_UNDEFINED 直接在原来画面基础上进行Alpha混色绘制
@@ -40,10 +41,15 @@ void ShowGIFCS( uint3 n3ThdID : SV_DispatchThreadID)
 	else if ( 2 == m_nDisposal )
 	{// DM_BACKGROUND 用背景色填充画板，然后绘制，相当于用背景色进行Alpha混色，过程同上
 		g_tPaint[m_nLeftTop.xy + n3ThdID.xy] = g_tGIFFrame[n3ThdID.xy].w ? g_tGIFFrame[n3ThdID.xy] : m_c4BkColor;
+		//g_tPaint[m_nLeftTop.xy + n3ThdID.xy] = m_c4BkColor;
 	}
-
 	else if( 3 == m_nDisposal )
 	{// DM_PREVIOUS 保留前一帧
 		g_tPaint[ m_nLeftTop.xy + n3ThdID.xy ] = g_tPaint[n3ThdID.xy + m_nLeftTop.xy];
+	}
+	else
+	{// Disposal 是其它任何值时，都采用与背景Alpha混合的操作
+		g_tPaint[m_nLeftTop.xy + n3ThdID.xy]
+			= g_tGIFFrame[n3ThdID.xy].w ? g_tGIFFrame[n3ThdID.xy] : g_tPaint[m_nLeftTop.xy + n3ThdID.xy];
 	}
 }

@@ -1673,8 +1673,11 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 		{
 			if (VT_UI2 == stCOMPropValue.vt)
 			{
-				// Convert the delay retrieved in 10 ms units to a delay in 1 ms units
 				GRS_THROW_IF_FAILED(UIntMult(stCOMPropValue.uiVal, 10, &stGIFFrame.m_nFrameDelay));
+				if (0 == stGIFFrame.m_nFrameDelay)
+				{
+					stGIFFrame.m_nFrameDelay = 100;
+				}
 			}
 		}
 		PropVariantClear(&stCOMPropValue);
@@ -2055,7 +2058,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 解决的方法当时Wait一下Fence Event，这里依然使用最懒的方法，就是在上面等个20ms完事
 				// 这个等待不能是INFINITE，如果没有渲染也没有设置这个事件句柄给Fence的话，它永远不会有信号，那样等待就像死锁了一样
 				   
-				DWORD dwRet = WaitForSingleObject(g_hEventFence, 20);
+				DWORD dwRet = WaitForSingleObject(g_hEventFence, 40);
 
 				g_pIRWTexture.Reset();
 
