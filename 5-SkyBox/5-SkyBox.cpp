@@ -278,9 +278,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight));
 
 	//球体的网格数据
-	ST_GRS_VERTEX* pstSphereVertices = nullptr;
+	ST_GRS_VERTEX*						pstSphereVertices = nullptr;
 	UINT								nSphereVertexCnt = 0;
-	UINT* pSphereIndices = nullptr;
+	UINT*								pSphereIndices = nullptr;
 	UINT								nSphereIndexCnt = 0;
 
 	//Sky Box的网格数据
@@ -1250,7 +1250,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_THROW_IF_FAILED(pICBUploadSkybox->Map(0, nullptr, reinterpret_cast<void**>(&pMVPBufSkybox)));
 			//---------------------------------------------------------------------------------------------
 		}
-
 
 		// 创建SRV描述符
 		{
