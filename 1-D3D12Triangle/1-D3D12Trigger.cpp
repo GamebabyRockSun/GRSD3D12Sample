@@ -168,7 +168,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			UpdateWindow(hWnd);
 		}
 
-		//打开显示子系统的调试支持
+		// 打开显示子系统的调试支持
 		{
 #if defined(_DEBUG)
 			ComPtr<ID3D12Debug> debugController;
@@ -287,7 +287,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		}
 
-		//创建一个空的根描述符，也就是默认的根描述符
+		// 创建一个空的根描述符，也就是默认的根描述符
 		{
 			D3D12_ROOT_SIGNATURE_DESC stRootSignatureDesc = 
 			{ 
@@ -313,7 +313,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, IID_PPV_ARGS(&pIRootSignature)));
 		}
 
-		//创建命令列表分配器
+		// 创建命令列表分配器
 		{
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommandAllocator(
 				D3D12_COMMAND_LIST_TYPE_DIRECT

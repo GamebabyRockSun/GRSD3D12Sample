@@ -468,14 +468,17 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		//4、枚举适配器创建设备
-		{//选择NUMA架构的独显来创建3D设备对象,暂时先不支持集显了，当然你可以修改这些行为
+		{//通过最新的DXGI EnumAdapterByGpuPreference接口找到系统中性能最强的显卡来创建设备
 
 			GRS_THROW_IF_FAILED(pIDXGIFactory6->EnumAdapterByGpuPreference(0
 				, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
 				, IID_PPV_ARGS(&pIAdapter1)));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIAdapter1);
+
 			// 创建D3D12.1的设备
-			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&pID3D12Device4)));
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get()
+				, D3D_FEATURE_LEVEL_12_1
+				, IID_PPV_ARGS(&pID3D12Device4)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pID3D12Device4);
 
 	
@@ -1118,7 +1121,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			// 计算透视矩阵（本例中光源 摄像机都使用同一个透视矩阵）
 			XMStoreFloat4x4(&g_mxProjection
-				, XMMatrixPerspectiveFovLH(XM_PIDIV4, (FLOAT)g_iWndWidth / (FLOAT)g_iWndHeight, fNearPlane, fFarPlane));
+				, XMMatrixPerspectiveFovLH(XM_PIDIV4
+					, (FLOAT)g_iWndWidth / (FLOAT)g_iWndHeight
+					, fNearPlane
+					, fFarPlane));
 
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
@@ -1306,7 +1312,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					{
 						//关于时间的基本运算都放在了主线程中
 						//真实的引擎或程序中建议时间值也作为一个每帧更新的参数从主线程获取并传给各子线程
-						n64tmCurrent = ::GetTickCount();
+						n64tmCurrent = ::GetTickCount64();
 						//计算旋转的角度：旋转角度(弧度) = 时间(秒) * 角速度(弧度/秒)
 						//下面这句代码相当于经典游戏消息循环中的OnUpdate函数中需要做的事情
 						dModelRotationYAngle += ((n64tmCurrent - n64tmFrameStart) / 1000.0f) * g_fPalstance;
@@ -1333,10 +1339,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 							XMVECTOR eye = XMLoadFloat4(&g_pstLights->m_stLights[i].m_v4Position);
 							XMVECTOR at = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-							XMStoreFloat4(&g_pstLights->m_stLights[i].m_v4Direction, XMVector3Normalize(XMVectorSubtract(at, eye)));
+							XMStoreFloat4(&g_pstLights->m_stLights[i].m_v4Direction
+								, XMVector3Normalize(XMVectorSubtract(at, eye)));
 							XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-							XMStoreFloat4x4(&g_pstLights->m_stLights[i].m_mxView, XMMatrixLookAtLH(eye, at, up));
+							XMStoreFloat4x4(&g_pstLights->m_stLights[i].m_mxView
+								, XMMatrixLookAtLH(eye, at, up));
 						}
 						// 渲染阴影 以第一个光源的空间为 视空间
 						g_mxView = g_pstLights->m_stLights[0].m_mxView;
