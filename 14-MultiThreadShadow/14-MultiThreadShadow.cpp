@@ -3,20 +3,24 @@
 #include <windows.h>
 #include <tchar.h>
 #include <wrl.h> //添加WTL支持 方便使用COM
+
 #include <atlconv.h>
 #include <atlcoll.h>  //for atl array
 #include <strsafe.h>  //for StringCchxxxxx function
+
 #include <dxgi1_6.h>
 #include <d3d12.h> //for d3d12
 #include <d3dcompiler.h>
+
 #if defined(_DEBUG)
 #include <dxgidebug.h>
 #endif
+
 #include <DirectXMath.h>
 #include "..\WindowsCommons\d3dx12.h"
 #include "..\WindowsCommons\DDSTextureLoader12.h"
 
-using namespace std;
+//using namespace std;
 using namespace Microsoft;
 using namespace Microsoft::WRL;
 using namespace DirectX;
@@ -601,18 +605,20 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stDepthOptimizedClearValue.DepthStencil.Depth = 1.0f;
 			stDepthOptimizedClearValue.DepthStencil.Stencil = 0;
 
+			CD3DX12_HEAP_PROPERTIES stHeapDesc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+			CD3DX12_RESOURCE_DESC stTexDesc = CD3DX12_RESOURCE_DESC::Tex2D(emDepthShadowFormat
+				, g_iWndWidth
+				, g_iWndHeight
+				, 1
+				, 0
+				, 1
+				, 0
+				, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 			//创建用于阴影渲染的深度缓冲区
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
+				& stHeapDesc
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Tex2D(emDepthShadowFormat
-					, g_iWndWidth
-					, g_iWndHeight
-					, 1
-					, 0
-					, 1
-					, 0
-					, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
+				, &stTexDesc
 				, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 				, &stDepthOptimizedClearValue
 				, IID_PPV_ARGS(&pIDepthShadowBuffer)
@@ -621,18 +627,20 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			stDepthOptimizedClearValue.Format = emDSFormat;
 
+			CD3DX12_HEAP_PROPERTIES stDSHeapDesc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+			CD3DX12_RESOURCE_DESC stDSTexDesc = CD3DX12_RESOURCE_DESC::Tex2D(emDSFormat
+				, g_iWndWidth
+				, g_iWndHeight
+				, 1
+				, 0
+				, 1
+				, 0
+				, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE);
 			// 创建第二遍正常渲染用的深度蜡板缓冲区
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
+				&stDSHeapDesc
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Tex2D(emDSFormat
-					, g_iWndWidth
-					, g_iWndHeight
-					, 1
-					, 0
-					, 1
-					, 0
-					, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE)
+				, &stDSTexDesc
 				, D3D12_RESOURCE_STATE_DEPTH_WRITE
 				, &stDepthOptimizedClearValue
 				, IID_PPV_ARGS(&pIDepthStencilBuffer)
@@ -922,11 +930,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			UINT nQuadVBSize = sizeof(stQuadVertices);
 			UINT nQuadVertexCnt = _countof(stQuadVertices);
-
+			CD3DX12_HEAP_PROPERTIES stUpHeapDesc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+			CD3DX12_RESOURCE_DESC stBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(nQuadVBSize);
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+				&stUpHeapDesc,
 				D3D12_HEAP_FLAG_NONE,
-				&CD3DX12_RESOURCE_DESC::Buffer(nQuadVBSize),
+				&stBufferDesc,
 				D3D12_RESOURCE_STATE_GENERIC_READ,
 				nullptr,
 				IID_PPV_ARGS(&pIVBQuad)));
@@ -935,7 +944,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			UINT8* pVertexDataBegin = nullptr;
 			CD3DX12_RANGE stReadRange(0, 0);		// We do not intend to read from this resource on the CPU.
 			GRS_THROW_IF_FAILED(pIVBQuad->Map(0, &stReadRange, reinterpret_cast<void**>(&pVertexDataBegin)));
-			memcpy(pVertexDataBegin, stQuadVertices, sizeof(stQuadVertices));
+			memcpy(pVertexDataBegin, (void*)&stQuadVertices[0], sizeof(stQuadVertices));
 			pIVBQuad->Unmap(0, nullptr);
 
 			stVBViewQuad.BufferLocation = pIVBQuad->GetGPUVirtualAddress();

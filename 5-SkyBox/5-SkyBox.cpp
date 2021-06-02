@@ -732,7 +732,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, pISignatureBlob->GetBufferSize()
 				, IID_PPV_ARGS(&pIRootSignature)));
 
-
 		}
 
 		// 编译Shader创建渲染管线状态对象
@@ -775,8 +774,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stPSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 			//stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 			stPSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-			stPSODesc.DepthStencilState.DepthEnable = FALSE;
-			stPSODesc.DepthStencilState.StencilEnable = FALSE;
 			stPSODesc.SampleMask = UINT_MAX;
 			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 			stPSODesc.NumRenderTargets = 1;
@@ -785,6 +782,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stPSODesc.DepthStencilState.DepthEnable = TRUE;
 			stPSODesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;//启用深度缓存写入功能
 			stPSODesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;     //深度测试函数（该值为普通的深度测试）
+			stPSODesc.DepthStencilState.StencilEnable = FALSE;
 			stPSODesc.SampleDesc.Count = 1;
 
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc

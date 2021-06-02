@@ -8,7 +8,7 @@
 #include <time.h>	// for time
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
-#define GRS_WND_TITLE	_T("GRS DirectX12 Multi Thread Shadow Sample")
+#define GRS_WND_TITLE	_T("GRS DirectX12 Render Thread Pool Based On Barrier Kernel Objects Sample")
 
 //控制台输出方法
 #define GRS_INIT_OUTPUT() 	if (!::AllocConsole()){throw CGRSCOMException(HRESULT_FROM_WIN32(::GetLastError()));}\
@@ -80,6 +80,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	GRS_USEPRINTF();
 	try
 	{
+		
 		GRS_INIT_OUTPUT();
 		// 创建窗口
 		{
@@ -111,6 +112,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
 			}
+
+			// 最大化命令行窗口
+			ShowWindow(GetConsoleWindow(), SW_MAXIMIZE);    //窗体最大化
 		}
 
 		// 创建用于CPU子渲染线程池的同步对象
