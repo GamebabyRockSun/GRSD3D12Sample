@@ -500,10 +500,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
 			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
-		}
 
-		// 得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
-		{
+			// 得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
 			//注意此处使用了高版本的SwapChain接口的函数
 			GRS_THROW_IF_FAILED(pISwapChain1.As(&pISwapChain3));
 			nFrameIndex = pISwapChain3->GetCurrentBackBufferIndex();
@@ -616,13 +614,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						
 		// 编译Shader创建渲染管线状态对象
 		{
-
+			UINT compileFlags = 0;
 #if defined(_DEBUG)
 			// Enable better shader debugging with the graphics debugging tools.
-			UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-			UINT compileFlags = 0;
+			compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
+
 			TCHAR pszShaderFileName[MAX_PATH] = {};
 			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s3-PlacedTexture\\Shader\\Texture.hlsl"), pszAppPath);
 			

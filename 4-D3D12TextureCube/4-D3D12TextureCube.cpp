@@ -12,7 +12,6 @@
 #include <dxgidebug.h>
 #endif
 #include <wincodec.h> //for WIC
-#include "..\WindowsCommons\d3dx12.h"
 
 using namespace Microsoft;
 using namespace Microsoft::WRL;
@@ -25,7 +24,7 @@ using namespace DirectX;
 #pragma comment(lib, "d3dcompiler.lib")
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
-#define GRS_WND_TITLE	_T("GRS DirectX12 Texture Sample")
+#define GRS_WND_TITLE	_T("GRS DirectX12 Texture Cube Sample")
 
 #define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
@@ -205,6 +204,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	UINT								nDXGIFactoryFlags = 0U;
 	UINT								nRTVDescriptorSize = 0U;
+	UINT								nSRVDescriptorSize = 0U;
 
 	HWND								hWnd = nullptr;
 	MSG									msg = {};
@@ -234,8 +234,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 	UINT								nSamplerDescriptorSize = 0; //采样器大小
 
-	CD3DX12_VIEWPORT					stViewPort(0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight));
-	CD3DX12_RECT						stScissorRect(0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight));
+	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight) };
+	D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight) };
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter1;
@@ -447,8 +447,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//4、创建DXGI Factory对象
 		{
 			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
-			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		//5、枚举适配器创建设备
@@ -491,6 +489,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, pszWndTitle
 				, stAdapterDesc.Description);
 			::SetWindowText(hWnd, pszWndTitle);
+
+			//得到每个描述符元素的大小
+			nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			nSRVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			nSamplerDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 		}
 
 		//6、创建直接命令队列
@@ -541,17 +544,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
-			//得到每个描述符元素的大小
-			nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
+			
 			//---------------------------------------------------------------------------------------------
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+			D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
 			for (UINT i = 0; i < nFrameBackBufCount; i++)
 			{//这个循环暴漏了描述符堆实际上是个数组的本质
 				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&pIARenderTargets[i])));
 				pID3D12Device4->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
-				stRTVHandle.Offset(1, nRTVDescriptorSize);
+				stRTVHandle.ptr += nRTVDescriptorSize;
 			}
+
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		//9、创建 SRV CBV Sample堆
@@ -569,8 +573,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stSamplerHeapDesc, IID_PPV_ARGS(&pISamplerDescriptorHeap)));
-
-			nSamplerDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+			
 		}
 
 		//10、创建根签名
@@ -579,31 +582,63 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 检测是否支持V1.1版本的根签名
 			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 			if (FAILED(pID3D12Device4->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
-			{
-				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+			{// 1.0版 直接丢异常退出了
+				GRS_THROW_IF_FAILED(E_NOTIMPL);
 			}
 			// 在GPU上执行SetGraphicsRootDescriptorTable后，我们不修改命令列表中的SRV，因此我们可以使用默认Rang行为:
 			// D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE
-			CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[3];
-			stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-			stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-			stDSPRanges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
+			D3D12_DESCRIPTOR_RANGE1 stDSPRanges[3] = {};
 
-			CD3DX12_ROOT_PARAMETER1 stRootParameters[3];
-			stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
-			stRootParameters[1].InitAsDescriptorTable(1, &stDSPRanges[1], D3D12_SHADER_VISIBILITY_ALL); //CBV是所有Shader可见
-			stRootParameters[2].InitAsDescriptorTable(1, &stDSPRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
+			stDSPRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+			stDSPRanges[0].NumDescriptors = 1;
+			stDSPRanges[0].BaseShaderRegister = 0;
+			stDSPRanges[0].RegisterSpace = 0;
+			stDSPRanges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE;
+			stDSPRanges[0].OffsetInDescriptorsFromTableStart = 0;
 
-			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
+			stDSPRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+			stDSPRanges[1].NumDescriptors = 1;
+			stDSPRanges[1].BaseShaderRegister = 0;
+			stDSPRanges[1].RegisterSpace = 0;
+			stDSPRanges[1].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			stDSPRanges[1].OffsetInDescriptorsFromTableStart = 0;
 
-			stRootSignatureDesc.Init_1_1(_countof(stRootParameters), stRootParameters
-				, 0, nullptr
-				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+			stDSPRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+			stDSPRanges[2].NumDescriptors = 1;
+			stDSPRanges[2].BaseShaderRegister = 0;
+			stDSPRanges[2].RegisterSpace = 0;
+			stDSPRanges[2].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			stDSPRanges[2].OffsetInDescriptorsFromTableStart = 0;
+
+			D3D12_ROOT_PARAMETER1 stRootParameters[3] = {};
+
+			stRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	//SRV仅PS可见
+			stRootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[0].DescriptorTable.pDescriptorRanges = &stDSPRanges[0];
+
+			stRootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;		//CBV是所有Shader可见
+			stRootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[1].DescriptorTable.pDescriptorRanges = &stDSPRanges[1];
+
+			stRootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;	//SAMPLE仅PS可见
+			stRootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[2].DescriptorTable.pDescriptorRanges = &stDSPRanges[2];
+
+			D3D12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc = {};
+
+			stRootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+			stRootSignatureDesc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+			stRootSignatureDesc.Desc_1_1.NumParameters = _countof(stRootParameters);
+			stRootSignatureDesc.Desc_1_1.pParameters = stRootParameters;
+			stRootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
+			stRootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
 
 			ComPtr<ID3DBlob> pISignatureBlob;
 			ComPtr<ID3DBlob> pIErrorBlob;
-			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
-				, stFeatureData.HighestVersion
+			GRS_THROW_IF_FAILED(D3D12SerializeVersionedRootSignature(&stRootSignatureDesc
 				, &pISignatureBlob
 				, &pIErrorBlob));
 
@@ -644,11 +679,20 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 创建 graphics pipeline state object (PSO)对象
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
 			stPSODesc.InputLayout = { stInputElementDescs, _countof(stInputElementDescs) };
+
 			stPSODesc.pRootSignature = pIRootSignature.Get();
-			stPSODesc.VS = CD3DX12_SHADER_BYTECODE(pIBlobVertexShader.Get());
-			stPSODesc.PS = CD3DX12_SHADER_BYTECODE(pIBlobPixelShader.Get());
-			stPSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-			stPSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+			stPSODesc.VS.BytecodeLength = pIBlobVertexShader->GetBufferSize();
+			stPSODesc.VS.pShaderBytecode = pIBlobVertexShader->GetBufferPointer();
+			stPSODesc.PS.BytecodeLength = pIBlobPixelShader->GetBufferSize();
+			stPSODesc.PS.pShaderBytecode = pIBlobPixelShader->GetBufferPointer();
+
+			stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+			stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+
+			stPSODesc.BlendState.AlphaToCoverageEnable = FALSE;
+			stPSODesc.BlendState.IndependentBlendEnable = FALSE;
+			stPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
 			stPSODesc.DepthStencilState.DepthEnable = FALSE;
 			stPSODesc.DepthStencilState.StencilEnable = FALSE;
 			stPSODesc.SampleMask = UINT_MAX;
@@ -704,7 +748,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//-----------------------------------------------------------------------------------------------------------
 
 			//获取上传堆资源缓冲的大小，这个尺寸通常大于实际图片的尺寸
-			n64UploadBufferSize = GetRequiredIntermediateSize(pITexture.Get(), 0, 1);
+			D3D12_RESOURCE_DESC stCopyDstDesc = pITexture->GetDesc();
+			n64UploadBufferSize = 0;
+			pID3D12Device4->GetCopyableFootprints(&stCopyDstDesc, 0, 1, 0, nullptr, nullptr, nullptr, &n64UploadBufferSize);
 		}
 
 		//14、创建上传堆
@@ -727,9 +773,22 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		//15、使用“定位方式”创建用于上传纹理数据的缓冲资源
 		{
+			D3D12_RESOURCE_DESC stUploadResDesc = {};
+			stUploadResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stUploadResDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stUploadResDesc.Width = n64UploadBufferSize;
+			stUploadResDesc.Height = 1;
+			stUploadResDesc.DepthOrArraySize = 1;
+			stUploadResDesc.MipLevels = 1;
+			stUploadResDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stUploadResDesc.SampleDesc.Count = 1;
+			stUploadResDesc.SampleDesc.Quality = 0;
+			stUploadResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stUploadResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreatePlacedResource(pIUploadHeap.Get()
 				, 0
-				, &CD3DX12_RESOURCE_DESC::Buffer(n64UploadBufferSize)
+				, &stUploadResDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pITextureUpload)));
@@ -832,9 +891,17 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//注意此时直接命令列表还没有绑定PSO对象，因此它也是不能执行3D图形命令的，但是可以执行复制命令，因为复制引擎不需要什么
 		//额外的状态设置之类的参数
 		{
-			CD3DX12_TEXTURE_COPY_LOCATION Dst(pITexture.Get(), 0);
-			CD3DX12_TEXTURE_COPY_LOCATION Src(pITextureUpload.Get(), stTxtLayouts);
-			pICMDList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+			D3D12_TEXTURE_COPY_LOCATION stDstCopyLocation = {};
+			stDstCopyLocation.pResource = pITexture.Get();
+			stDstCopyLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			stDstCopyLocation.SubresourceIndex = 0;
+
+			D3D12_TEXTURE_COPY_LOCATION stSrcCopyLocation = {};
+			stSrcCopyLocation.pResource = pITextureUpload.Get();
+			stSrcCopyLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			stSrcCopyLocation.PlacedFootprint = stTxtLayouts;
+
+			pICMDList->CopyTextureRegion(&stDstCopyLocation, 0, 0, 0, &stSrcCopyLocation, nullptr);
 
 			//设置一个资源屏障，同步并确认复制操作完成
 			//直接使用结构体然后调用的形式
@@ -954,10 +1021,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//---------------------------------------------------------------------------------------------
 			//使用定位方式在相同的上传堆上以“定位方式”创建顶点缓冲，注意第二个参数指出了堆中的偏移位置
 			//按照堆边界对齐的要求，我们主动将偏移位置对齐到了64k的边界上
+			D3D12_RESOURCE_DESC stVBResDesc = {};
+			stVBResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stVBResDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stVBResDesc.Width = nVertexBufferSize;
+			stVBResDesc.Height = 1;
+			stVBResDesc.DepthOrArraySize = 1;
+			stVBResDesc.MipLevels = 1;
+			stVBResDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stVBResDesc.SampleDesc.Count = 1;
+			stVBResDesc.SampleDesc.Quality = 0;
+			stVBResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stVBResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreatePlacedResource(
 				pIUploadHeap.Get()
 				, n64BufferOffset
-				, &CD3DX12_RESOURCE_DESC::Buffer(nVertexBufferSize)
+				, &stVBResDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pIVertexBuffer)));
@@ -965,7 +1045,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//使用map-memcpy-unmap大法将数据传至顶点缓冲对象
 			//注意顶点缓冲使用是和上传纹理数据缓冲相同的一个堆，这很神奇
 			UINT8* pVertexDataBegin = nullptr;
-			CD3DX12_RANGE stReadRange(0, 0);		// We do not intend to read from this resource on the CPU.
+			D3D12_RANGE stReadRange = { 0, 0 };		// We do not intend to read from this resource on the CPU.
 
 			GRS_THROW_IF_FAILED(pIVertexBuffer->Map(0, &stReadRange, reinterpret_cast<void**>(&pVertexDataBegin)));
 			memcpy(pVertexDataBegin, stTriangleVertices, sizeof(stTriangleVertices));
@@ -979,10 +1059,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//计算边界对齐的正确的偏移位置
 			n64BufferOffset = GRS_UPPER(n64BufferOffset + nVertexBufferSize, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 
+			D3D12_RESOURCE_DESC stIBResDesc = {};
+			stIBResDesc.Dimension			= D3D12_RESOURCE_DIMENSION_BUFFER;
+			stIBResDesc.Alignment			= D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stIBResDesc.Width				= nszIndexBuffer;
+			stIBResDesc.Height				= 1;
+			stIBResDesc.DepthOrArraySize	= 1;
+			stIBResDesc.MipLevels			= 1;
+			stIBResDesc.Format				= DXGI_FORMAT_UNKNOWN;
+			stIBResDesc.SampleDesc.Count	= 1;
+			stIBResDesc.SampleDesc.Quality	= 0;
+			stIBResDesc.Layout				= D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stIBResDesc.Flags				= D3D12_RESOURCE_FLAG_NONE;
+
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreatePlacedResource(
 				pIUploadHeap.Get()
 				, n64BufferOffset
-				, &CD3DX12_RESOURCE_DESC::Buffer(nszIndexBuffer)
+				, &stIBResDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pIIndexBuffer)));
@@ -1001,11 +1094,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			n64BufferOffset = GRS_UPPER(n64BufferOffset + nszIndexBuffer, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 
+			D3D12_RESOURCE_DESC stMVPResDesc = {};
+			stMVPResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stMVPResDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stMVPResDesc.Width = szMVPBuffer;
+			stMVPResDesc.Height = 1;
+			stMVPResDesc.DepthOrArraySize = 1;
+			stMVPResDesc.MipLevels = 1;
+			stMVPResDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stMVPResDesc.SampleDesc.Count = 1;
+			stMVPResDesc.SampleDesc.Quality = 0;
+			stMVPResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stMVPResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 			// 创建常量缓冲 注意缓冲尺寸设置为256边界对齐大小
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreatePlacedResource(
 				pIUploadHeap.Get()
 				, n64BufferOffset
-				, &CD3DX12_RESOURCE_DESC::Buffer(szMVPBuffer)
+				, &stMVPResDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pICBVUpload)));
@@ -1031,9 +1136,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			cbvDesc.BufferLocation = pICBVUpload->GetGPUVirtualAddress();
 			cbvDesc.SizeInBytes = static_cast<UINT>(szMVPBuffer);
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stCPUCBVHandle(pISRVHeap->GetCPUDescriptorHandleForHeapStart()
-				, 1
-				, pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+			D3D12_CPU_DESCRIPTOR_HANDLE stCPUCBVHandle = pISRVHeap->GetCPUDescriptorHandleForHeapStart();
+			stCPUCBVHandle.ptr += nSRVDescriptorSize;
+
 
 			pID3D12Device4->CreateConstantBufferView(&cbvDesc, stCPUCBVHandle);
 		}
@@ -1041,7 +1146,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		//23、创建各种采样器
 		{
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE hSamplerHeap(pISamplerDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+			D3D12_CPU_DESCRIPTOR_HANDLE hSamplerHeap = pISamplerDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 			D3D12_SAMPLER_DESC stSamplerDesc = {};
 			stSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -1062,7 +1167,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 
-			hSamplerHeap.Offset(nSamplerDescriptorSize);
+			hSamplerHeap.ptr += (nSamplerDescriptorSize);
 
 			// Sampler 2
 			stSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -1070,7 +1175,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 
-			hSamplerHeap.Offset(nSamplerDescriptorSize);
+			hSamplerHeap.ptr += (nSamplerDescriptorSize);
 
 			// Sampler 3
 			stSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -1078,7 +1183,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 
-			hSamplerHeap.Offset(nSamplerDescriptorSize);
+			hSamplerHeap.ptr += (nSamplerDescriptorSize);
 
 			// Sampler 4
 			stSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
@@ -1086,7 +1191,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 
-			hSamplerHeap.Offset(nSamplerDescriptorSize);
+			hSamplerHeap.ptr += (nSamplerDescriptorSize);
 
 			// Sampler 5
 			stSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
@@ -1095,6 +1200,26 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 		}
 		
+		D3D12_RESOURCE_BARRIER stBeginResBarrier = {};
+		D3D12_RESOURCE_BARRIER stEneResBarrier = {};
+		{
+
+			stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stBeginResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stBeginResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+			stBeginResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			stBeginResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+
+			stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stEneResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+			stEneResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stEneResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		}
+
 		//25、记录帧开始时间，和当前时间，以循环结束为界
 		ULONGLONG n64tmFrameStart = ::GetTickCount64();
 		ULONGLONG n64tmCurrent = n64tmFrameStart;
@@ -1156,11 +1281,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 				//---------------------------------------------------------------------------------------------
 				// 通过资源屏障判定后缓冲已经切换完毕可以开始渲染了
-				pICMDList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
+				stBeginResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+				pICMDList->ResourceBarrier(1, &stBeginResBarrier);
 
 				//偏移描述符指针到指定帧缓冲视图位置
-				CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(pIRTVHeap->GetCPUDescriptorHandleForHeapStart(), nFrameIndex, nRTVDescriptorSize);
+				D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
+				stRTVHandle.ptr += (nFrameIndex * nRTVDescriptorSize);
 				//设置渲染目标
 				pICMDList->OMSetRenderTargets(1, &stRTVHandle, FALSE, nullptr);
 
@@ -1175,19 +1301,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				ID3D12DescriptorHeap* ppHeaps[] = { pISRVHeap.Get(),pISamplerDescriptorHeap.Get() };
 				pICMDList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-				CD3DX12_GPU_DESCRIPTOR_HANDLE stGPUSRVHandle(pISRVHeap->GetGPUDescriptorHandleForHeapStart());
+				D3D12_GPU_DESCRIPTOR_HANDLE stGPUSRVHandle = pISRVHeap->GetGPUDescriptorHandleForHeapStart();
 				//设置SRV
 				pICMDList->SetGraphicsRootDescriptorTable(0, stGPUSRVHandle);
 
-				stGPUSRVHandle.Offset(1
-					, pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+				stGPUSRVHandle.ptr += nSRVDescriptorSize;
+
 				//设置CBV
 				pICMDList->SetGraphicsRootDescriptorTable(1, stGPUSRVHandle);
 
 
-				CD3DX12_GPU_DESCRIPTOR_HANDLE hGPUSampler(pISamplerDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
-					, g_nCurrentSamplerNO
-					, nSamplerDescriptorSize);
+				D3D12_GPU_DESCRIPTOR_HANDLE hGPUSampler = pISamplerDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+				hGPUSampler.ptr += (g_nCurrentSamplerNO * nSamplerDescriptorSize);
 				//设置Sample
 				pICMDList->SetGraphicsRootDescriptorTable(2, hGPUSampler);
 
@@ -1202,7 +1327,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 				//---------------------------------------------------------------------------------------------
 				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-				pICMDList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pIARenderTargets[nFrameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+				stEneResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+				pICMDList->ResourceBarrier(1, &stEneResBarrier);
 				//关闭命令列表，可以去执行了
 				GRS_THROW_IF_FAILED(pICMDList->Close());
 
