@@ -14,7 +14,7 @@
 #include <dxgidebug.h>
 #endif
 #include <DirectXMath.h>
-#include "..\WindowsCommons\d3dx12.h"
+//#include "..\WindowsCommons\d3dx12.h"
 #include "..\WindowsCommons\DDSTextureLoader12.h"
 
 using namespace std;
@@ -36,6 +36,12 @@ using namespace DirectX;
 #define GRS_UPPER_DIV(A,B) ((UINT)(((A)+((B)-1))/(B)))
 //更简洁的向上边界对齐算法 内存管理中常用 请记住
 #define GRS_UPPER(A,B) ((UINT)(((A)+((B)-1))&~(B - 1)))
+
+// 内存分配的宏定义
+#define GRS_ALLOC(sz)		::HeapAlloc(GetProcessHeap(),0,(sz))
+#define GRS_CALLOC(sz)		::HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,(sz))
+#define GRS_CREALLOC(p,sz)	::HeapReAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,(p),(sz))
+#define GRS_SAFE_FREE(p)		if( nullptr != (p) ){ ::HeapFree( ::GetProcessHeap(),0,(p) ); (p) = nullptr; }
 
 //------------------------------------------------------------------------------------------------------------
 // 为了调试加入下面的内联函数和宏定义，为每个接口对象设置名称，方便查看调试输出
@@ -158,11 +164,11 @@ struct ST_GRS_THREAD_PARAMS
 	ID3D12PipelineState*				pIPSO;
 };
 
-int g_iWndWidth = 1024;
-int g_iWndHeight = 768;
+int									g_iWndWidth = 1024;
+int									g_iWndHeight = 768;
 
-CD3DX12_VIEWPORT					g_stViewPort(0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight));
-CD3DX12_RECT						g_stScissorRect(0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight));
+D3D12_VIEWPORT						g_stViewPort = { 0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight) };
+D3D12_RECT							g_stScissorRect = { 0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight) };
 
 //初始的默认摄像机的位置
 XMFLOAT3							g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f);  //眼睛位置
@@ -193,9 +199,9 @@ ComPtr<ID3D12DescriptorHeap>		g_pIDSVHeap;				//深度缓冲描述符堆
 
 TCHAR								g_pszAppPath[MAX_PATH] = {};
 
-UINT __stdcall RenderThread(void* pParam);
+UINT __stdcall		RenderThread(void* pParam);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-BOOL LoadMeshVertex(const CHAR*pszMeshFileName, UINT&nVertexCnt, ST_GRS_VERTEX*&ppVertex, UINT*&ppIndices);
+BOOL				LoadMeshVertex(const CHAR*pszMeshFileName, UINT&nVertexCnt, ST_GRS_VERTEX*&ppVertex, UINT*&ppIndices);
 
 int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    lpCmdLine, int nCmdShow)
 {
@@ -316,8 +322,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		{
 			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory5);
-			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		//4、枚举适配器创建设备
@@ -413,36 +417,53 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			g_nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 			//---------------------------------------------------------------------------------------------
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart());
+			D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
 			for (UINT i = 0; i < g_nFrameBackBufCount; i++)
 			{//这个循环暴漏了描述符堆实际上是个数组的本质
 				GRS_THROW_IF_FAILED(pISwapChain3->GetBuffer(i, IID_PPV_ARGS(&g_pIARenderTargets[i])));
 				GRS_SET_D3D12_DEBUGNAME_INDEXED_COMPTR(g_pIARenderTargets, i);
 				pID3D12Device4->CreateRenderTargetView(g_pIARenderTargets[i].Get(), nullptr, stRTVHandle);
-				stRTVHandle.Offset(1, g_nRTVDescriptorSize);
+				stRTVHandle.ptr += g_nRTVDescriptorSize;
 			}
+
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		//7、创建深度缓冲及深度缓冲描述符堆
 		{
+			D3D12_HEAP_PROPERTIES stDSBufHeapDesc = {};
+
+			stDSBufHeapDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
+			stDSBufHeapDesc.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			stDSBufHeapDesc.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+			stDSBufHeapDesc.CreationNodeMask = 0;
+			stDSBufHeapDesc.VisibleNodeMask = 0;
+
 			D3D12_CLEAR_VALUE stDepthOptimizedClearValue = {};
 			stDepthOptimizedClearValue.Format = emDSFormat;
 			stDepthOptimizedClearValue.DepthStencil.Depth = 1.0f;
 			stDepthOptimizedClearValue.DepthStencil.Stencil = 0;
 
+			D3D12_RESOURCE_DESC stDSResDesc = {};
+			stDSResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			stDSResDesc.Alignment = 0;
+			stDSResDesc.Format = emDSFormat;
+			stDSResDesc.Width = g_iWndWidth;
+			stDSResDesc.Height = g_iWndHeight;
+			stDSResDesc.DepthOrArraySize = 1;
+			stDSResDesc.MipLevels = 0;
+			stDSResDesc.SampleDesc.Count = 1;
+			stDSResDesc.SampleDesc.Quality = 0;
+			stDSResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+			stDSResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
 			//使用隐式默认堆创建一个深度蜡板缓冲区，
 			//因为基本上深度缓冲区会一直被使用，重用的意义不大，所以直接使用隐式堆，图方便
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT)
+				&stDSBufHeapDesc
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Tex2D(emDSFormat
-					, g_iWndWidth
-					, g_iWndHeight
-					, 1
-					, 0
-					, 1
-					, 0
-					, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
+				, &stDSResDesc
 				, D3D12_RESOURCE_STATE_DEPTH_WRITE
 				, &stDepthOptimizedClearValue
 				, IID_PPV_ARGS(&pIDepthStencilBuffer)
@@ -491,31 +512,61 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			// 检测是否支持V1.1版本的根签名
 			stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 			if (FAILED(pID3D12Device4->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &stFeatureData, sizeof(stFeatureData))))
-			{
-				stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+			{// 1.0版 直接丢异常退出了
+				GRS_THROW_IF_FAILED(E_NOTIMPL);
 			}
 
-			CD3DX12_DESCRIPTOR_RANGE1 stDSPRanges[3];
-			stDSPRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-			stDSPRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-			stDSPRanges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
+			D3D12_DESCRIPTOR_RANGE1 stDSPRanges[3] = {};
 
-			CD3DX12_ROOT_PARAMETER1 stRootParameters[3];
-			stRootParameters[0].InitAsDescriptorTable(1, &stDSPRanges[0], D3D12_SHADER_VISIBILITY_ALL); //CBV是所有Shader可见
-			stRootParameters[1].InitAsDescriptorTable(1, &stDSPRanges[1], D3D12_SHADER_VISIBILITY_PIXEL);//SRV仅PS可见
-			stRootParameters[2].InitAsDescriptorTable(1, &stDSPRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);//SAMPLE仅PS可见
+			stDSPRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+			stDSPRanges[0].NumDescriptors = 1;
+			stDSPRanges[0].BaseShaderRegister = 0;
+			stDSPRanges[0].RegisterSpace = 0;
+			stDSPRanges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			stDSPRanges[0].OffsetInDescriptorsFromTableStart = 0;
 
-			CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc;
-			stRootSignatureDesc.Init_1_1(_countof(stRootParameters)
-				, stRootParameters
-				, 0
-				, nullptr
-				, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+			stDSPRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+			stDSPRanges[1].NumDescriptors = 1;
+			stDSPRanges[1].BaseShaderRegister = 0;
+			stDSPRanges[1].RegisterSpace = 0;
+			stDSPRanges[1].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			stDSPRanges[1].OffsetInDescriptorsFromTableStart = 0;
 
+			stDSPRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+			stDSPRanges[2].NumDescriptors = 1;
+			stDSPRanges[2].BaseShaderRegister = 0;
+			stDSPRanges[2].RegisterSpace = 0;
+			stDSPRanges[2].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
+			stDSPRanges[2].OffsetInDescriptorsFromTableStart = 0;
+
+			D3D12_ROOT_PARAMETER1 stRootParameters[3] = {};
+
+			stRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+			stRootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[0].DescriptorTable.pDescriptorRanges = &stDSPRanges[0];
+
+			stRootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+			stRootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[1].DescriptorTable.pDescriptorRanges = &stDSPRanges[1];
+
+			stRootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+			stRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+			stRootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
+			stRootParameters[2].DescriptorTable.pDescriptorRanges = &stDSPRanges[2];
+
+			D3D12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc = {};
+			stRootSignatureDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+			stRootSignatureDesc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+			stRootSignatureDesc.Desc_1_1.NumParameters = _countof(stRootParameters);
+			stRootSignatureDesc.Desc_1_1.pParameters = stRootParameters;
+			stRootSignatureDesc.Desc_1_1.NumStaticSamplers = 0;
+			stRootSignatureDesc.Desc_1_1.pStaticSamplers = nullptr;
+			
 			ComPtr<ID3DBlob> pISignatureBlob;
 			ComPtr<ID3DBlob> pIErrorBlob;
-			GRS_THROW_IF_FAILED(D3DX12SerializeVersionedRootSignature(&stRootSignatureDesc
-				, stFeatureData.HighestVersion
+			GRS_THROW_IF_FAILED(D3D12SerializeVersionedRootSignature(&stRootSignatureDesc
 				, &pISignatureBlob
 				, &pIErrorBlob));
 
@@ -558,10 +609,18 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
 			stPSODesc.InputLayout = { stIALayoutSphere, _countof(stIALayoutSphere) };
 			stPSODesc.pRootSignature = pIRootSignature.Get();
-			stPSODesc.VS = CD3DX12_SHADER_BYTECODE(pIVSSphere.Get());
-			stPSODesc.PS = CD3DX12_SHADER_BYTECODE(pIPSSphere.Get());
-			stPSODesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-			stPSODesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+			stPSODesc.VS.BytecodeLength = pIVSSphere->GetBufferSize();
+			stPSODesc.VS.pShaderBytecode = pIVSSphere->GetBufferPointer();
+			stPSODesc.PS.BytecodeLength = pIPSSphere->GetBufferSize();
+			stPSODesc.PS.pShaderBytecode = pIPSSphere->GetBufferPointer();
+
+			stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+			stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+
+			stPSODesc.BlendState.AlphaToCoverageEnable = FALSE;
+			stPSODesc.BlendState.IndependentBlendEnable = FALSE;
+			stPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
 			stPSODesc.SampleMask = UINT_MAX;
 			stPSODesc.SampleDesc.Count = 1;
 			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -655,6 +714,25 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			{
 				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
 			}
+		}
+
+		D3D12_RESOURCE_BARRIER stBeginResBarrier = {};
+		D3D12_RESOURCE_BARRIER stEneResBarrier = {};
+		{
+			stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stBeginResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stBeginResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+			stBeginResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+			stBeginResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+
+			stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stEneResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+			stEneResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stEneResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		}
 
 		UINT nStates = 0; //初始状态为0
@@ -753,17 +831,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 					//渲染前处理
 					{
-						pICmdListPre->ResourceBarrier(1
-							, &CD3DX12_RESOURCE_BARRIER::Transition(
-								g_pIARenderTargets[nCurrentFrameIndex].Get()
-								, D3D12_RESOURCE_STATE_PRESENT
-								, D3D12_RESOURCE_STATE_RENDER_TARGET)
-						);
+						stBeginResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+						pICmdListPre->ResourceBarrier(1, &stBeginResBarrier);
 
 						//偏移描述符指针到指定帧缓冲视图位置
-						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
-							, nCurrentFrameIndex, g_nRTVDescriptorSize);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
+						D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
+						stRTVHandle.ptr += ( nCurrentFrameIndex * g_nRTVDescriptorSize);
+						D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
 						//设置渲染目标
 						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
 
@@ -795,11 +869,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				break;
 				case 2:// 状态2 表示所有的渲染命令列表都记录完成了，开始后处理和执行命令列表
 				{
-					pICmdListPost->ResourceBarrier(1
-						, &CD3DX12_RESOURCE_BARRIER::Transition(
-							g_pIARenderTargets[nCurrentFrameIndex].Get()
-							, D3D12_RESOURCE_STATE_RENDER_TARGET
-							, D3D12_RESOURCE_STATE_PRESENT));
+					stEneResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+					pICmdListPost->ResourceBarrier(1, &stEneResBarrier);
 
 					//关闭命令列表，可以去执行了
 					GRS_THROW_IF_FAILED(pICmdListPre->Close());
@@ -871,7 +942,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		KillTimer(hWnd, WM_USER + 100);
-
 	}
 	catch (CGRSCOMException& e)
 	{//发生了COM异常
@@ -949,32 +1019,144 @@ UINT __stdcall RenderThread(void* pParam)
 				, pbDDSData, stArSubResources, SIZE_MAX, &emAlphaMode, &bIsCube));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pITexture);
 
-			UINT64 n64szUpSphere = GetRequiredIntermediateSize(pITexture.Get(), 0, static_cast<UINT>(stArSubResources.size()));
 			D3D12_RESOURCE_DESC stTXDesc = pITexture->GetDesc();
+			UINT64 n64szUpSphere = 0;
+			pThdPms->pID3D12Device4->GetCopyableFootprints(&stTXDesc, 0, 1, 0, nullptr, nullptr, nullptr, &n64szUpSphere);
+			
+			D3D12_HEAP_PROPERTIES stHeapProp = {};
+			stHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
+			stHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			stHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+			stHeapProp.CreationNodeMask = 1;
+			stHeapProp.VisibleNodeMask = 1;
+
+			D3D12_RESOURCE_DESC stUploadBufDesc = {};
+			stUploadBufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stUploadBufDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stUploadBufDesc.Width = n64szUpSphere;
+			stUploadBufDesc.Height = 1;
+			stUploadBufDesc.DepthOrArraySize = 1;
+			stUploadBufDesc.MipLevels = 1;
+			stUploadBufDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stUploadBufDesc.SampleDesc.Count = 1;
+			stUploadBufDesc.SampleDesc.Quality = 0;
+			stUploadBufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stUploadBufDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 			GRS_THROW_IF_FAILED(pThdPms->pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
+				&stHeapProp
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Buffer(n64szUpSphere)
+				, &stUploadBufDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pITextureUpload)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(pITextureUpload);
 
-			UpdateSubresources(pThdPms->pICmdList
-				, pITexture.Get()
-				, pITextureUpload.Get()
-				, 0
-				, 0
-				, static_cast<UINT>(stArSubResources.size())
-				, stArSubResources.data());
+
+			//UpdateSubresources(pThdPms->pICmdList
+			//	, pITexture.Get()
+			//	, pITextureUpload.Get()
+			//	, 0
+			//	, 0
+			//	, static_cast<UINT>(stArSubResources.size())
+			//	, stArSubResources.data());
+
+			UINT nFirstSubresource = 0;
+			UINT nNumSubresources = static_cast<UINT>(stArSubResources.size());
+			D3D12_RESOURCE_DESC stUploadResDesc = pITextureUpload->GetDesc();
+			D3D12_RESOURCE_DESC stDefaultResDesc = pITexture->GetDesc();
+
+			UINT64 n64RequiredSize = 0;
+			SIZE_T szMemToAlloc = static_cast<UINT64>(sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT)
+				+ sizeof(UINT)
+				+ sizeof(UINT64))
+				* nNumSubresources;
+
+			void* pMem = GRS_CALLOC(static_cast<SIZE_T>(szMemToAlloc));
+
+			if (nullptr == pMem)
+			{
+				throw CGRSCOMException(HRESULT_FROM_WIN32(GetLastError()));
+			}
+
+			D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayouts = reinterpret_cast<D3D12_PLACED_SUBRESOURCE_FOOTPRINT*>(pMem);
+			UINT64* pRowSizesInBytes = reinterpret_cast<UINT64*>(pLayouts + nNumSubresources);
+			UINT* pNumRows = reinterpret_cast<UINT*>(pRowSizesInBytes + nNumSubresources);
+
+			// 这里是第二次调用GetCopyableFootprints，就得到了所有子资源的详细信息
+			pThdPms->pID3D12Device4->GetCopyableFootprints(&stDefaultResDesc, nFirstSubresource, nNumSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &n64RequiredSize);
+
+			BYTE* pData = nullptr;
+			HRESULT hr = pITextureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pData));
+			if (FAILED(hr))
+			{
+				return 0;
+			}
+
+			// 第一遍Copy！注意3重循环每重的意思
+			for (UINT i = 0; i < nNumSubresources; ++i)
+			{// SubResources
+				if (pRowSizesInBytes[i] > (SIZE_T)-1)
+				{
+					throw CGRSCOMException(E_FAIL);
+				}
+
+				D3D12_MEMCPY_DEST stCopyDestData = { pData + pLayouts[i].Offset
+					, pLayouts[i].Footprint.RowPitch
+					, pLayouts[i].Footprint.RowPitch * pNumRows[i]
+				};
+
+				for (UINT z = 0; z < pLayouts[i].Footprint.Depth; ++z)
+				{// Mipmap
+					BYTE* pDestSlice = reinterpret_cast<BYTE*>(stCopyDestData.pData) + stCopyDestData.SlicePitch * z;
+					const BYTE* pSrcSlice = reinterpret_cast<const BYTE*>(stArSubResources[i].pData) + stArSubResources[i].SlicePitch * z;
+					for (UINT y = 0; y < pNumRows[i]; ++y)
+					{// Rows
+						memcpy(pDestSlice + stCopyDestData.RowPitch * y,
+							pSrcSlice + stArSubResources[i].RowPitch * y,
+							(SIZE_T)pRowSizesInBytes[i]);
+					}
+				}
+			}
+			pITextureUpload->Unmap(0, nullptr);
+
+			// 第二次Copy！
+			if (stDefaultResDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+			{// Buffer 一次性复制就可以了，因为没有行对齐和行大小不一致的问题，Buffer中行数就是1
+				pThdPms->pICmdList->CopyBufferRegion(
+					pITexture.Get(), 0, pITextureUpload.Get(), pLayouts[0].Offset, pLayouts[0].Footprint.Width);
+			}
+			else
+			{
+				for (UINT i = 0; i < nNumSubresources; ++i)
+				{
+					D3D12_TEXTURE_COPY_LOCATION stDstCopyLocation = {};
+					stDstCopyLocation.pResource = pITexture.Get();
+					stDstCopyLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+					stDstCopyLocation.SubresourceIndex = i;
+
+					D3D12_TEXTURE_COPY_LOCATION stSrcCopyLocation = {};
+					stSrcCopyLocation.pResource = pITextureUpload.Get();
+					stSrcCopyLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+					stSrcCopyLocation.PlacedFootprint = pLayouts[i];
+
+					pThdPms->pICmdList->CopyTextureRegion(&stDstCopyLocation, 0, 0, 0, &stSrcCopyLocation, nullptr);
+				}
+			}
+
+			D3D12_RESOURCE_BARRIER stTransResBarrier = {};
+
+			stTransResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stTransResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stTransResBarrier.Transition.pResource = pITexture.Get();
+			stTransResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+			stTransResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+			stTransResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 			//同步
-			pThdPms->pICmdList->ResourceBarrier(1
-				, &CD3DX12_RESOURCE_BARRIER::Transition(pITexture.Get()
-					, D3D12_RESOURCE_STATE_COPY_DEST
-					, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+			pThdPms->pICmdList->ResourceBarrier(1, &stTransResBarrier);
 
+			// 创建描述符堆
 			D3D12_DESCRIPTOR_HEAP_DESC stSRVCBVHPDesc = {};
 			stSRVCBVHPDesc.NumDescriptors = 2; // 1 CBV + 1 SRV
 			stSRVCBVHPDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -990,12 +1172,12 @@ UINT __stdcall RenderThread(void* pParam)
 			stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			stSRVDesc.Texture2D.MipLevels = 1;
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stCbvSrvHandle(pISRVCBVHp->GetCPUDescriptorHandleForHeapStart()
-				, 1, pThdPms->pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+			D3D12_CPU_DESCRIPTOR_HANDLE stCbvSrvHandle = pISRVCBVHp->GetCPUDescriptorHandleForHeapStart();
+			stCbvSrvHandle.ptr += pThdPms->pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
 			pThdPms->pID3D12Device4->CreateShaderResourceView(pITexture.Get()
 				, &stSRVDesc
 				, stCbvSrvHandle);
-
 		}
 
 		//2、创建Sample
@@ -1027,11 +1209,31 @@ UINT __stdcall RenderThread(void* pParam)
 			LoadMeshVertex(pThdPms->pszMeshFile, nVertexCnt, pstVertices, pnIndices);
 			nIndexCnt = nVertexCnt;
 
+			D3D12_HEAP_PROPERTIES stHeapProp = {};
+			stHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
+			stHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			stHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+			stHeapProp.CreationNodeMask = 1;
+			stHeapProp.VisibleNodeMask = 1;
+
+			D3D12_RESOURCE_DESC stUploadBufDesc = {};
+			stUploadBufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stUploadBufDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stUploadBufDesc.Width = nVertexCnt * sizeof(ST_GRS_VERTEX);
+			stUploadBufDesc.Height = 1;
+			stUploadBufDesc.DepthOrArraySize = 1;
+			stUploadBufDesc.MipLevels = 1;
+			stUploadBufDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stUploadBufDesc.SampleDesc.Count = 1;
+			stUploadBufDesc.SampleDesc.Quality = 0;
+			stUploadBufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stUploadBufDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
 			//创建 Vertex Buffer 仅使用Upload隐式堆
 			GRS_THROW_IF_FAILED(pThdPms->pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
+				&stHeapProp
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Buffer(nVertexCnt * sizeof(ST_GRS_VERTEX))
+				, &stUploadBufDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pIVB)));
@@ -1039,17 +1241,19 @@ UINT __stdcall RenderThread(void* pParam)
 
 			//使用map-memcpy-unmap大法将数据传至顶点缓冲对象
 			UINT8* pVertexDataBegin = nullptr;
-			CD3DX12_RANGE stReadRange(0, 0);		// We do not intend to read from this resource on the CPU.
+			D3D12_RANGE stReadRange = { 0, 0 };		// We do not intend to read from this resource on the CPU.
 
 			GRS_THROW_IF_FAILED(pIVB->Map(0, &stReadRange, reinterpret_cast<void**>(&pVertexDataBegin)));
 			memcpy(pVertexDataBegin, pstVertices, nVertexCnt * sizeof(ST_GRS_VERTEX));
 			pIVB->Unmap(0, nullptr);
 
+
 			//创建 Index Buffer 仅使用Upload隐式堆
+			stUploadBufDesc.Width = nIndexCnt * sizeof(UINT);
 			GRS_THROW_IF_FAILED(pThdPms->pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
+				&stHeapProp
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Buffer(nIndexCnt * sizeof(UINT))
+				, &stUploadBufDesc
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pIIB)));
@@ -1076,10 +1280,30 @@ UINT __stdcall RenderThread(void* pParam)
 
 		//4、创建常量缓冲 
 		{
+			D3D12_HEAP_PROPERTIES stHeapProp = {};
+			stHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
+			stHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+			stHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+			stHeapProp.CreationNodeMask = 1;
+			stHeapProp.VisibleNodeMask = 1;
+
+			D3D12_RESOURCE_DESC stUploadBufDesc = {};
+			stUploadBufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+			stUploadBufDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+			stUploadBufDesc.Width = szMVPBuf;
+			stUploadBufDesc.Height = 1;
+			stUploadBufDesc.DepthOrArraySize = 1;
+			stUploadBufDesc.MipLevels = 1;
+			stUploadBufDesc.Format = DXGI_FORMAT_UNKNOWN;
+			stUploadBufDesc.SampleDesc.Count = 1;
+			stUploadBufDesc.SampleDesc.Quality = 0;
+			stUploadBufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+			stUploadBufDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
 			GRS_THROW_IF_FAILED(pThdPms->pID3D12Device4->CreateCommittedResource(
-				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD)
+				&stHeapProp
 				, D3D12_HEAP_FLAG_NONE
-				, &CD3DX12_RESOURCE_DESC::Buffer(szMVPBuf) //注意缓冲尺寸设置为256边界对齐大小
+				, &stUploadBufDesc //注意缓冲尺寸设置为256边界对齐大小
 				, D3D12_RESOURCE_STATE_GENERIC_READ
 				, nullptr
 				, IID_PPV_ARGS(&pICBWVP)));
@@ -1093,7 +1317,7 @@ UINT __stdcall RenderThread(void* pParam)
 			cbvDesc.BufferLocation = pICBWVP->GetGPUVirtualAddress();
 			cbvDesc.SizeInBytes = static_cast<UINT>(szMVPBuf);
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE stCbvSrvHandle(pISRVCBVHp->GetCPUDescriptorHandleForHeapStart());
+			D3D12_CPU_DESCRIPTOR_HANDLE stCbvSrvHandle = pISRVCBVHp->GetCPUDescriptorHandleForHeapStart();
 			pThdPms->pID3D12Device4->CreateConstantBufferView(&cbvDesc, stCbvSrvHandle);
 		}
 
@@ -1164,10 +1388,9 @@ UINT __stdcall RenderThread(void* pParam)
 				//---------------------------------------------------------------------------------------------
 				//设置对应的渲染目标和视裁剪框(这是渲染子线程必须要做的步骤，基本也就是所谓多线程渲染的核心秘密所在了)
 				{
-					CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
-						, pThdPms->nCurrentFrameIndex
-						, g_nRTVDescriptorSize);
-					CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart());
+					D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
+					stRTVHandle.ptr += ( pThdPms->nCurrentFrameIndex * g_nRTVDescriptorSize);
+					D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
 					//设置渲染目标
 					pThdPms->pICmdList->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
 					pThdPms->pICmdList->RSSetViewports(1, &g_stViewPort);
@@ -1182,11 +1405,10 @@ UINT __stdcall RenderThread(void* pParam)
 					ID3D12DescriptorHeap* ppHeapsSphere[] = { pISRVCBVHp.Get(),pISampleHp.Get() };
 					pThdPms->pICmdList->SetDescriptorHeaps(_countof(ppHeapsSphere), ppHeapsSphere);
 
-					CD3DX12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandleSphere(pISRVCBVHp->GetGPUDescriptorHandleForHeapStart());
+					D3D12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandleSphere = pISRVCBVHp->GetGPUDescriptorHandleForHeapStart();
 					//设置CBV
 					pThdPms->pICmdList->SetGraphicsRootDescriptorTable(0, stGPUCBVHandleSphere);
-
-					stGPUCBVHandleSphere.Offset(1, pThdPms->pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+					stGPUCBVHandleSphere.ptr += pThdPms->pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 					//设置SRV
 					pThdPms->pICmdList->SetGraphicsRootDescriptorTable(1, stGPUCBVHandleSphere);
 
