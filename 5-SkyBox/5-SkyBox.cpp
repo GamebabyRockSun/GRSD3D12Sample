@@ -32,7 +32,7 @@ using namespace DirectX;
 #ifndef GRS_BLOCK
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
-#define GRS_WND_TITLE	_T("GRS DirectX12 Texture Sample")
+#define GRS_WND_TITLE	_T("GRS DirectX12 SkyBox Sample")
 
 #define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 

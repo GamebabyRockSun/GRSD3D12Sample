@@ -28,7 +28,7 @@ using namespace DirectX;
 #pragma comment(lib, "d3dcompiler.lib")
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
-#define GRS_WND_TITLE	_T("GRS DirectX12 MultiThread Sample")
+#define GRS_WND_TITLE	_T("GRS DirectX12 Multithreaded Rendering Sample")
 
 #define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
