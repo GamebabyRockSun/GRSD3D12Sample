@@ -24,7 +24,7 @@ using namespace DirectX;
 #pragma comment(lib, "d3dcompiler.lib")
 
 #define GRS_WND_CLASS_NAME _T("GRS Game Window Class")
-#define GRS_WND_TITLE	_T("GRS DirectX12 Texture Sample")
+#define GRS_WND_TITLE	_T("GRS DirectX12 Placed Texture Sample")
 
 #define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ throw CGRSCOMException(_hr); }}
 
@@ -684,7 +684,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		
 		// 创建2D纹理
 		{
-			
 			stTextureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 			stTextureDesc.MipLevels = 1;
 			stTextureDesc.Format = stTextureFormat; 
@@ -725,7 +724,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			n64UploadBufferSize = 0;
 			D3D12_RESOURCE_DESC stCopyDstDesc = pITexture->GetDesc();
 			pID3D12Device4->GetCopyableFootprints(&stCopyDstDesc, 0, 1, 0, nullptr, nullptr, nullptr, &n64UploadBufferSize);
-
 		}
 
 		// 创建上传堆
@@ -1005,7 +1003,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
 			pID3D12Device4->CreateSampler(&stSamplerDesc, hSamplerHeap);
 		}	
-
 
 		// 使用“定位方式”创建顶点缓冲，使用与上传纹理数据缓冲相同的一个上传堆
 		{

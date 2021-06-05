@@ -149,10 +149,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp" />
-    <None Include="6-MultiThread.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </None>
     <ClCompile Include="6-MultiThreadWithMsgWait.cpp" />
   </ItemGroup>
   <ItemGroup>

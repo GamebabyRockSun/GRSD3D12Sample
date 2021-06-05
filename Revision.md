@@ -38,3 +38,9 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 2021-6-4
 
 1、添加了16-Assimp_Data_Display示例，用来以命令行方式直接显示Assimp导入的模型数据。
+
+2、去除了示例6中所有关于d3dx12.h的所有引用；
+
+2021-6-5
+
+1、去除了示例7多显卡渲染中的d3dx12.h的所有引用；

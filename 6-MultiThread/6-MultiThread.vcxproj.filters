@@ -34,8 +34,5 @@
     <None Include="Shader\TextureCube.hlsl">
       <Filter>Shader</Filter>
     </None>
-    <None Include="6-MultiThread.cpp">
-      <Filter>源文件</Filter>
-    </None>
   </ItemGroup>
 </Project>
