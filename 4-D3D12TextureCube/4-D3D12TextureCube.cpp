@@ -1201,7 +1201,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 		
 		D3D12_RESOURCE_BARRIER stBeginResBarrier = {};
-		D3D12_RESOURCE_BARRIER stEneResBarrier = {};
+		D3D12_RESOURCE_BARRIER stEndResBarrier = {};
 		{
 
 			stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -1212,12 +1212,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 
-			stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			stEneResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
-			stEneResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			stEneResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-			stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			stEndResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stEndResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stEndResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+			stEndResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stEndResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			stEndResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		}
 
 		//25、记录帧开始时间，和当前时间，以循环结束为界
@@ -1293,8 +1293,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				pICMDList->RSSetViewports(1, &stViewPort);
 				pICMDList->RSSetScissorRects(1, &stScissorRect);
 				// 继续记录命令，并真正开始新一帧的渲染
-				const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-				pICMDList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
+				const float arClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+				pICMDList->ClearRenderTargetView(stRTVHandle, arClearColor, 0, nullptr);
 
 				//---------------------------------------------------------------------------------------------
 				pICMDList->SetGraphicsRootSignature(pIRootSignature.Get());
@@ -1327,8 +1327,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 				//---------------------------------------------------------------------------------------------
 				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-				stEneResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
-				pICMDList->ResourceBarrier(1, &stEneResBarrier);
+				stEndResBarrier.Transition.pResource = pIARenderTargets[nFrameIndex].Get();
+				pICMDList->ResourceBarrier(1, &stEndResBarrier);
 				//关闭命令列表，可以去执行了
 				GRS_THROW_IF_FAILED(pICMDList->Close());
 

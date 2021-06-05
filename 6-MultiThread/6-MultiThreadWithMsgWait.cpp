@@ -717,7 +717,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		D3D12_RESOURCE_BARRIER stBeginResBarrier = {};
-		D3D12_RESOURCE_BARRIER stEneResBarrier = {};
+		D3D12_RESOURCE_BARRIER stEndResBarrier = {};
 		{
 			stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 			stBeginResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -727,12 +727,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 
-			stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			stEneResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
-			stEneResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			stEneResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-			stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			stEndResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stEndResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stEndResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+			stEndResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stEndResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			stEndResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		}
 
 		UINT nStates = 0; //初始状态为0
@@ -869,8 +869,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				break;
 				case 2:// 状态2 表示所有的渲染命令列表都记录完成了，开始后处理和执行命令列表
 				{
-					stEneResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
-					pICmdListPost->ResourceBarrier(1, &stEneResBarrier);
+					stEndResBarrier.Transition.pResource = g_pIARenderTargets[nCurrentFrameIndex].Get();
+					pICmdListPost->ResourceBarrier(1, &stEndResBarrier);
 
 					//关闭命令列表，可以去执行了
 					GRS_THROW_IF_FAILED(pICmdListPre->Close());

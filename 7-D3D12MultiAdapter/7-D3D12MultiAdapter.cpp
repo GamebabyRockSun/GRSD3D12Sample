@@ -605,7 +605,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					stGPUParams[iGPUIndex].m_pICmdList->SetName(pszDebugName);
 				}
 
-				if (iGPUIndex == nIDGPUMain)
+				if ( iGPUIndex == nIDGPUMain )
 				{// 在主显卡上创建复制命令列表对象
 					GRS_THROW_IF_FAILED(stGPUParams[iGPUIndex].m_pID3D12Device4->CreateCommandList(0
 						, D3D12_COMMAND_LIST_TYPE_COPY
@@ -682,8 +682,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				UINT64 n64szTexture = 0;
 				D3D12_RESOURCE_DESC stCrossAdapterResDesc = {};
 
-				if (bCrossAdapterTextureSupport)
-				{
+				if ( bCrossAdapterTextureSupport )
+				{// 这表示可以在显卡间直接共享Texture，这就省去了Texture来回复制的麻烦
 					// 如果支持那么直接创建跨显卡资源堆
 					stCrossAdapterResDesc = stRenderTargetDesc;
 					stCrossAdapterResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
@@ -694,7 +694,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					n64szTexture = stTextureInfo.SizeInBytes;
 				}
 				else
-				{
+				{// 这表示只能在多个显卡间共享Buffer，这也是目前D3D12共享资源的最低要求，通常异构显卡目前只能共享Buffer
+				 // 只能共享Buffer时，只能通过共享的Buffer来回复制Texture，在示例中就主要是复制Render Target Texture
 					// 如果不支持，那么我们就需要先在主显卡上创建用于复制渲染结果的资源堆，然后再共享堆到辅助显卡上
 					D3D12_PLACED_SUBRESOURCE_FOOTPRINT stResLayout = {};
 					stGPUParams[nIDGPUMain].m_pID3D12Device4->GetCopyableFootprints(
@@ -716,7 +717,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					stCrossAdapterResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER;
 				}
 
-				// 创建跨显卡共享的资源堆
+				// 创建跨显卡共享的资源堆，注意是默认堆
 				D3D12_HEAP_DESC stCrossHeapDesc = {};
 				stCrossHeapDesc.SizeInBytes = n64szTexture * g_nFrameBackBufCount;
 				stCrossHeapDesc.Alignment = 0;
@@ -730,6 +731,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3D12Device4->CreateHeap(&stCrossHeapDesc
 					, IID_PPV_ARGS(&stGPUParams[nIDGPUMain].m_pICrossAdapterHeap)));
 
+				// 在主显卡上得到共享堆的句柄
 				HANDLE hHeap = nullptr;
 				GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3D12Device4->CreateSharedHandle(
 					stGPUParams[nIDGPUMain].m_pICrossAdapterHeap.Get(),
@@ -738,6 +740,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					nullptr,
 					&hHeap));
 
+				// 在第二个显卡上打开句柄，实质就是完成了资源堆的共享
 				HRESULT hrOpenSharedHandle = stGPUParams[nIDGPUSecondary].m_pID3D12Device4->OpenSharedHandle(hHeap
 					, IID_PPV_ARGS(&stGPUParams[nIDGPUSecondary].m_pICrossAdapterHeap));
 
@@ -747,7 +750,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				GRS_THROW_IF_FAILED(hrOpenSharedHandle);
 
 				// 以定位方式在共享堆上创建每个显卡上的资源
-				for (UINT nFrameIndex = 0; nFrameIndex < g_nFrameBackBufCount; nFrameIndex++)
+				for ( UINT nFrameIndex = 0; nFrameIndex < g_nFrameBackBufCount; nFrameIndex++ )
 				{
 					GRS_THROW_IF_FAILED(stGPUParams[nIDGPUMain].m_pID3D12Device4->CreatePlacedResource(
 						stGPUParams[nIDGPUMain].m_pICrossAdapterHeap.Get(),

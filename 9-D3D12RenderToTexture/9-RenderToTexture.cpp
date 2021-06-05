@@ -1320,8 +1320,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 					pICmdList->RSSetViewports(1, &stViewPort);
 					pICmdList->RSSetScissorRects(1, &stScissorRect);
-					const float clearColor[] = { 0.0f, 0.0f, 0.5f, 1.0f };
-					pICmdList->ClearRenderTargetView(stRTVHandle, clearColor, 0, nullptr);
+					const float arClearColor[] = { 0.0f, 0.0f, 0.5f, 1.0f };
+					pICmdList->ClearRenderTargetView(stRTVHandle, arClearColor, 0, nullptr);
 					pICmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 					//再一次执行每个场景物体的的捆绑包，渲染到屏幕

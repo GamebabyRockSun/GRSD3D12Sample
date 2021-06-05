@@ -1643,7 +1643,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		}
 
 		D3D12_RESOURCE_BARRIER stBeginResBarrier = {};
-		D3D12_RESOURCE_BARRIER stEneResBarrier = {};
+		D3D12_RESOURCE_BARRIER stEndResBarrier = {};
 		{
 			stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 			stBeginResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -1653,12 +1653,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 
 
-			stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			stEneResBarrier.Transition.pResource = pIARenderTargets[nCurrentFrameIndex].Get();
-			stEneResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			stEneResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-			stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			stEndResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			stEndResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			stEndResBarrier.Transition.pResource = pIARenderTargets[nCurrentFrameIndex].Get();
+			stEndResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			stEndResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+			stEndResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		}
 
 		// 记录帧开始时间，和当前时间，以循环结束为界
@@ -1765,8 +1765,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				//===============================================================================================
 
 				//又一个资源屏障，用于确定渲染已经结束可以提交画面去显示了
-				stEneResBarrier.Transition.pResource = pIARenderTargets[nCurrentFrameIndex].Get();
-				pICmdListDirect->ResourceBarrier(1, &stEneResBarrier);
+				stEndResBarrier.Transition.pResource = pIARenderTargets[nCurrentFrameIndex].Get();
+				pICmdListDirect->ResourceBarrier(1, &stEndResBarrier);
 				//关闭命令列表，可以去执行了
 				GRS_THROW_IF_FAILED(pICmdListDirect->Close());
 
