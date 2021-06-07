@@ -201,10 +201,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	UINT								nBPP = 0u;
 	DXGI_FORMAT							stTextureFormat = DXGI_FORMAT_UNKNOWN;
 
-	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f
-		, static_cast<float>(iWidth), static_cast<float>(iHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-	D3D12_RECT							stScissorRect = { 0, 0
-		, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight) };
+	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+	D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight) };
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 	ComPtr<IDXGIAdapter1>				pIAdapter1;
@@ -324,8 +322,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		// 创建DXGI Factory对象
 		{
 			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
-			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		// 枚举适配器，并选择合适的适配器来创建3D设备对象
@@ -410,6 +406,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				pID3D12Device4->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
 				stRTVHandle.ptr += nRTVDescriptorSize;
 			}
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		// 创建SRV堆 (Shader Resource View Heap)

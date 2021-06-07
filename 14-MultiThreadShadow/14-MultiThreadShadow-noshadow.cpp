@@ -1051,17 +1051,17 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						//偏移描述符指针到指定帧缓冲视图位置
 						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
 							, m_nCurrentFrameIndex, g_nRTVDescriptorSize);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
+						CD3DX12_CPU_DESCRIPTOR_HANDLE stDSVHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
 							,1
 							, pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
 						//设置渲染目标
-						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &stDSVHandle);
 
 						pICmdListPre->RSSetViewports(1, &g_stViewPort);
 						pICmdListPre->RSSetScissorRects(1, &g_stScissorRect);
 
 						pICmdListPre->ClearRenderTargetView(stRTVHandle, faClearColor, 0, nullptr);
-						pICmdListPre->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+						pICmdListPre->ClearDepthStencilView(stDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 					}
 
 
@@ -1543,11 +1543,11 @@ UINT __stdcall RenderThread(void* pParam)
 						CD3DX12_CPU_DESCRIPTOR_HANDLE stRTVHandle(g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart()
 							, pThdPms->m_nCurrentFrameIndex
 							, g_nRTVDescriptorSize);
-						CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
+						CD3DX12_CPU_DESCRIPTOR_HANDLE stDSVHandle(g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart()
 							, 1
 							, pThdPms->m_pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV));
 						//设置渲染目标
-						pThdPms->m_pICmdList->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+						pThdPms->m_pICmdList->OMSetRenderTargets(1, &stRTVHandle, FALSE, &stDSVHandle);
 						pThdPms->m_pICmdList->RSSetViewports(1, &g_stViewPort);
 						pThdPms->m_pICmdList->RSSetScissorRects(1, &g_stScissorRect);
 					}

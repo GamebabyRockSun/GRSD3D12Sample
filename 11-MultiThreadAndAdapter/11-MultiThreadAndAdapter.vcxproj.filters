@@ -21,9 +21,6 @@
     <ClCompile Include="..\WindowsCommons\DDSTextureLoader12.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="11-MultiThreadAndAdapter_NoMultiThread.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="11-MultiThreadAndAdapter.cpp">
       <Filter>源文件</Filter>
     </ClCompile>

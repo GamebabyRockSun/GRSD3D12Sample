@@ -272,6 +272,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	UINT64								n64szUploadBufEarth = 0;
 	UINT64								n64szUploadBufSkybox = 0;
 
+	DXGI_FORMAT							emRTFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	DXGI_FORMAT							emDSFormat = DXGI_FORMAT_D32_FLOAT;
 	DXGI_FORMAT							emTxtFmtEarth = DXGI_FORMAT_UNKNOWN;
 	const float							faClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
 
@@ -285,7 +287,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	UINT								nSamplerDescriptorSize = 0; //采样器大小
 	
 
-	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight) };
+	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
 	D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight) };
 
 	//球体的网格数据
@@ -604,7 +606,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stSwapChainDesc.BufferCount = nFrameBackBufCount;
 			stSwapChainDesc.Width = iWndWidth;
 			stSwapChainDesc.Height = iWndHeight;
-			stSwapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			stSwapChainDesc.Format = emRTFormat;
 			stSwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 			stSwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 			stSwapChainDesc.SampleDesc.Count = 1;
@@ -654,12 +656,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stDSBufHeapDesc.VisibleNodeMask = 0;
 
 			D3D12_DEPTH_STENCIL_VIEW_DESC stDepthStencilDesc = {};
-			stDepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+			stDepthStencilDesc.Format = emDSFormat;
 			stDepthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 			stDepthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
 			D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-			depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+			depthOptimizedClearValue.Format = emDSFormat;
 			depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
 			depthOptimizedClearValue.DepthStencil.Stencil = 0;
 
@@ -670,7 +672,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stDSResDesc.Height = iWndHeight;
 			stDSResDesc.DepthOrArraySize = 1;
 			stDSResDesc.MipLevels = 0;
-			stDSResDesc.Format = DXGI_FORMAT_D32_FLOAT;
+			stDSResDesc.Format = emDSFormat;
 			stDSResDesc.SampleDesc.Count = 1;
 			stDSResDesc.SampleDesc.Quality = 0;
 			stDSResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -849,8 +851,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stPSODesc.SampleMask = UINT_MAX;
 			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 			stPSODesc.NumRenderTargets = 1;
-			stPSODesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-			stPSODesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+			stPSODesc.RTVFormats[0] = emRTFormat;
+			stPSODesc.DSVFormat = emDSFormat;
 			stPSODesc.DepthStencilState.DepthEnable = TRUE;
 			stPSODesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;//启用深度缓存写入功能
 			stPSODesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;     //深度测试函数（该值为普通的深度测试）
@@ -1495,10 +1497,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			cbvDesc.BufferLocation = pICBUploadEarth->GetGPUVirtualAddress();
 			cbvDesc.SizeInBytes = static_cast<UINT>(szMVPBuf);
 
-			D3D12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle = pISRVHpEarth->GetCPUDescriptorHandleForHeapStart();
-			cbvSrvHandle.ptr += nSRVDescriptorSize;
+			D3D12_CPU_DESCRIPTOR_HANDLE stSRVCBVHandle = pISRVHpEarth->GetCPUDescriptorHandleForHeapStart();
+			stSRVCBVHandle.ptr += nSRVDescriptorSize;
 
-			pID3D12Device4->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
+			pID3D12Device4->CreateConstantBufferView(&cbvDesc, stSRVCBVHandle);
 
 			//---------------------------------------------------------------------------------------------
 			cbvDesc.BufferLocation = pICBUploadSkybox->GetGPUVirtualAddress();
@@ -1739,9 +1741,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				//偏移描述符指针到指定帧缓冲视图位置
 				D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
 				stRTVHandle.ptr += (nCurrentFrameIndex * nRTVDescriptorSize);
-				D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
+				D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
 				//设置渲染目标
-				pICmdListDirect->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+				pICmdListDirect->OMSetRenderTargets(1, &stRTVHandle, FALSE, &stDSVHandle);
 				pICmdListDirect->RSSetViewports(1, &stViewPort);
 				pICmdListDirect->RSSetScissorRects(1, &stScissorRect);
 

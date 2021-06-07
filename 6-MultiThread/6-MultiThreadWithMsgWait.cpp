@@ -167,7 +167,7 @@ struct ST_GRS_THREAD_PARAMS
 int									g_iWndWidth = 1024;
 int									g_iWndHeight = 768;
 
-D3D12_VIEWPORT						g_stViewPort = { 0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight) };
+D3D12_VIEWPORT						g_stViewPort = { 0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
 D3D12_RECT							g_stScissorRect = { 0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight) };
 
 //初始的默认摄像机的位置
@@ -837,15 +837,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						//偏移描述符指针到指定帧缓冲视图位置
 						D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
 						stRTVHandle.ptr += ( nCurrentFrameIndex * g_nRTVDescriptorSize);
-						D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
+						D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
 						//设置渲染目标
-						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+						pICmdListPre->OMSetRenderTargets(1, &stRTVHandle, FALSE, &stDSVHandle);
 
 						pICmdListPre->RSSetViewports(1, &g_stViewPort);
 						pICmdListPre->RSSetScissorRects(1, &g_stScissorRect);
 						
 						pICmdListPre->ClearRenderTargetView(stRTVHandle, faClearColor, 0, nullptr);
-						pICmdListPre->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+						pICmdListPre->ClearDepthStencilView(stDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 					}
 
 					nStates = 2;
@@ -1390,9 +1390,9 @@ UINT __stdcall RenderThread(void* pParam)
 				{
 					D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = g_pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
 					stRTVHandle.ptr += ( pThdPms->nCurrentFrameIndex * g_nRTVDescriptorSize);
-					D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
+					D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart();
 					//设置渲染目标
-					pThdPms->pICmdList->OMSetRenderTargets(1, &stRTVHandle, FALSE, &dsvHandle);
+					pThdPms->pICmdList->OMSetRenderTargets(1, &stRTVHandle, FALSE, &stDSVHandle);
 					pThdPms->pICmdList->RSSetViewports(1, &g_stViewPort);
 					pThdPms->pICmdList->RSSetScissorRects(1, &g_stScissorRect);
 				}

@@ -42,7 +42,7 @@ using namespace DirectX;
 #define GRS_ALLOC(sz)		::HeapAlloc(GetProcessHeap(),0,(sz))
 #define GRS_CALLOC(sz)		::HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,(sz))
 #define GRS_CREALLOC(p,sz)	::HeapReAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,(p),(sz))
-#define GRS_SAFE_FREE(p)		if( nullptr != (p) ){ ::HeapFree( ::GetProcessHeap(),0,(p) ); (p) = nullptr; }
+#define GRS_SAFE_FREE(p)	if( nullptr != (p) ){ ::HeapFree( ::GetProcessHeap(),0,(p) ); (p) = nullptr; }
 
 //------------------------------------------------------------------------------------------------------------
 // 为了调试加入下面的内联函数和宏定义，为每个接口对象设置名称，方便查看调试输出
@@ -223,7 +223,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		DXGI_FORMAT							emRTFmt = DXGI_FORMAT_R8G8B8A8_UNORM;
 		DXGI_FORMAT							emDSFmt = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-		D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(nWndWidth), static_cast<float>(nWndHeight) };
+		D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(nWndWidth), static_cast<float>(nWndHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
 		D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(nWndWidth), static_cast<LONG>(nWndHeight) };
 
 		const UINT							nMaxGPUParams = 2;			//演示仅支持两个GPU进行渲染
@@ -375,12 +375,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 		// 枚举适配器创建设备
 		{// 使用DXGI的新函数EnumAdapterByGpuPreference来从高到低枚举系统中的显卡
-
-			//D3D12_FEATURE_DATA_ARCHITECTURE stArchitecture = {};
-			//ID3D12Device4* pID3DDeviceTmp = nullptr;
-			//IDXGIOutput* pIOutput = nullptr;
-			//HRESULT			hrEnumOutput = S_OK;
-
 			DXGI_ADAPTER_DESC1 stAdapterDesc[nMaxGPUParams] = {};
 		    IDXGIAdapter1* pIAdapterTmp = nullptr;
 			UINT			i = 0;
@@ -1133,11 +1127,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				stGPUParams[nIDGPUMain].m_pID3D12Device4->GetCopyableFootprints(&stDefaultResDesc, nFirstSubresource, nNumSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &n64RequiredSize);
 
 				BYTE* pData = nullptr;
-				HRESULT hr = stModuleParams[i].pITextureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pData));
-				if (FAILED(hr))
-				{
-					return 0;
-				}
+				GRS_THROW_IF_FAILED(stModuleParams[i].pITextureUpload->Map(0, nullptr, reinterpret_cast<void**>(&pData)));
 
 				// 第一遍Copy！注意3重循环每重的意思
 				for (UINT nSubRes = 0; nSubRes < nNumSubresources; ++nSubRes)
@@ -1194,7 +1184,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 				//同步
 				D3D12_RESOURCE_BARRIER stUploadTransResBarrier = {};
-
 				stUploadTransResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 				stUploadTransResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 				stUploadTransResBarrier.Transition.pResource = stModuleParams[i].pITexture.Get();
@@ -1657,14 +1646,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 						D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = stGPUParams[nIDGPUMain].m_pIDHRTV->GetCPUDescriptorHandleForHeapStart();
 						rtvHandle.ptr += (nCurrentFrameIndex * stGPUParams[nIDGPUMain].m_nszRTV);
-						D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = stGPUParams[nIDGPUMain].m_pIDHDSVTex->GetCPUDescriptorHandleForHeapStart();
+						D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = stGPUParams[nIDGPUMain].m_pIDHDSVTex->GetCPUDescriptorHandleForHeapStart();
 
 						stGPUParams[nIDGPUMain].m_pICmdList->OMSetRenderTargets(
-							1, &rtvHandle, false, &dsvHandle);
+							1, &rtvHandle, false, &stDSVHandle);
 						stGPUParams[nIDGPUMain].m_pICmdList->ClearRenderTargetView(
 							rtvHandle, arf4ClearColor, 0, nullptr);
 						stGPUParams[nIDGPUMain].m_pICmdList->ClearDepthStencilView(
-							dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+							stDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 						//执行实际的物体绘制渲染，Draw Call！
 						for (int i = 0; i < nMaxObject; i++)

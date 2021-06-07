@@ -202,6 +202,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	UINT								nFrame = 0;
 
 	UINT								nRTVDescriptorSize = 0U;
+	UINT								nSRVDescriptorSize = 0U;
+	UINT								nSampleDescriptorSize = 0U;
 
 	HWND								hWnd = nullptr;
 	MSG									msg = {};
@@ -224,7 +226,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayouts = {};
 	D3D12_RESOURCE_DESC					stTextureDesc = {};
 
-	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight), 0.0f, 1.0f };
+	D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWndWidth), static_cast<float>(iWndHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
 	D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(iWndWidth), static_cast<LONG>(iWndHeight) };
 
 	ComPtr<IDXGIFactory5>				pIDXGIFactory5;
@@ -491,6 +493,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				, stAdapterDesc.Description);
 
 			::SetWindowText(hWnd, pszWndTitle);
+
+			//得到每个描述符元素的大小
+			nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			nSRVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			nSampleDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 		}
 
 		// 创建直接命令队列
@@ -552,8 +559,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			stRTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 			GRS_THROW_IF_FAILED(pID3D12Device4->CreateDescriptorHeap(&stRTVHeapDesc, IID_PPV_ARGS(&pIRTVHeap)));
-			//得到每个描述符元素的大小
-			nRTVDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+
 
 			//---------------------------------------------------------------------------------------------
 			//9、创建RTV的描述符
@@ -1035,10 +1042,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			cbvDesc.BufferLocation = pICBMVO->GetGPUVirtualAddress();
 			cbvDesc.SizeInBytes = static_cast<UINT>(szCBBuf);
 
-			D3D12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle = pISRVHeap->GetCPUDescriptorHandleForHeapStart();
-			cbvSrvHandle.ptr += pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			D3D12_CPU_DESCRIPTOR_HANDLE stSRVCBVHandle = pISRVHeap->GetCPUDescriptorHandleForHeapStart();
+			stSRVCBVHandle.ptr += nSRVDescriptorSize;
 
-			pID3D12Device4->CreateConstantBufferView(&cbvDesc, cbvSrvHandle);
+			pID3D12Device4->CreateConstantBufferView(&cbvDesc, stSRVCBVHandle);
 
 			// Sample View
 			D3D12_SAMPLER_DESC stSamplerDesc = {};
@@ -1065,7 +1072,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pICmdBundlesQuad->SetGraphicsRootDescriptorTable(0, pISRVHeap->GetGPUDescriptorHandleForHeapStart());
 
 			D3D12_GPU_DESCRIPTOR_HANDLE stGPUCBVHandle = pISRVHeap->GetGPUDescriptorHandleForHeapStart();
-			stGPUCBVHandle.ptr += pID3D12Device4->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			stGPUCBVHandle.ptr += nSRVDescriptorSize;
 
 			pICmdBundlesQuad->SetGraphicsRootDescriptorTable(1, stGPUCBVHandle);
 			pICmdBundlesQuad->SetGraphicsRootDescriptorTable(2, pISampleHeap->GetGPUDescriptorHandleForHeapStart());
