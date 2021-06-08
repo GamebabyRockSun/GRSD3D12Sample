@@ -56,3 +56,7 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 2021-6-7
 
 1、去除了示例11多线程+多显卡渲染示例中所有d3dx12.h的引用；
+
+2021-6-8
+
+1、去除了示例12多线程 + 多显卡渲染 + D2D + DirectWrite示例中所有d3dx12.h的引用；

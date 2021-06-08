@@ -129,7 +129,7 @@ private:
 
 #endif
 
-//默认后缓冲数量
+// 默认后缓冲数量
 const UINT								g_nFrameBackBufCount = 3u;
 
 // 显卡参数集合
@@ -230,39 +230,39 @@ struct ST_GRS_PEROBJECT_CB
 int g_iWndWidth = 1024;
 int g_iWndHeight = 768;
 
-D3D12_VIEWPORT	g_stViewPort = { 0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-D3D12_RECT		g_stScissorRect = { 0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight) };
+D3D12_VIEWPORT					g_stViewPort = { 0.0f, 0.0f, static_cast<float>(g_iWndWidth), static_cast<float>(g_iWndHeight) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+D3D12_RECT							g_stScissorRect = { 0, 0, static_cast<LONG>(g_iWndWidth), static_cast<LONG>(g_iWndHeight) };
 
 //初始的默认摄像机的位置
-XMFLOAT3							g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f);  //眼睛位置
-XMFLOAT3							g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
-XMFLOAT3							g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
+XMFLOAT3								g_f3EyePos = XMFLOAT3(0.0f, 5.0f, -10.0f);  //眼睛位置
+XMFLOAT3								g_f3LockAt = XMFLOAT3(0.0f, 0.0f, 0.0f);    //眼睛所盯的位置
+XMFLOAT3								g_f3HeapUp = XMFLOAT3(0.0f, 1.0f, 0.0f);    //头部正上方位置
 
-float								g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
-float								g_fPitch = 0.0f;			// 绕XZ平面的旋转量
+float											g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
+float											g_fPitch = 0.0f;			// 绕XZ平面的旋转量
 
-double								g_fPalstance = 5.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
+double										g_fPalstance = 5.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 
 XMFLOAT4X4							g_mxWorld = {}; //World Matrix
 XMFLOAT4X4							g_mxVP = {};    //View Projection Matrix
 
 // 全局线程参数
-const UINT							g_nMaxThread = 3;
-const UINT							g_nThdSphere = 0;
-const UINT							g_nThdCube = 1;
-const UINT							g_nThdPlane = 2;
-ST_GRS_THREAD_PARAMS				g_stThread[g_nMaxThread] = {};
+const UINT								g_nMaxThread = 3;
+const UINT								g_nThdSphere = 0;
+const UINT								g_nThdCube = 1;
+const UINT								g_nThdPlane = 2;
+ST_GRS_THREAD_PARAMS		g_stThread[g_nMaxThread] = {};
 
-TCHAR								g_pszAppPath[MAX_PATH] = {};
+TCHAR										g_pszAppPath[MAX_PATH] = {};
 
 //后处理需要的参数，设置为全局变量方便在窗口过程中根据按键输入调整
-UINT								g_nFunNO = 1;		//当前使用效果函数的序号（按空格键循环切换）
-UINT								g_nMaxFunNO = 2;    //总的效果函数个数
-float								g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
-float								g_fWaterPower = 40.0f;  //表示水彩扩展力度，单位为像素
+UINT										g_nFunNO = 1;		//当前使用效果函数的序号（按空格键循环切换）
+UINT										g_nMaxFunNO = 2;    //总的效果函数个数
+float											g_fQuatLevel = 2.0f;    //量化bit数，取值2-6
+float											g_fWaterPower = 40.0f;  //表示水彩扩展力度，单位为像素
 
 //使用哪个版本PS做最后的模糊处理：0 原样输出 1 矩阵形式高斯模糊PS 2 双向分离优化后的高斯模糊PS（来自微软官方示例）
-UINT								g_nUsePSID = 1;
+UINT										g_nUsePSID = 1;
 
 //渲染子线程函数
 UINT __stdcall RenderThread(void* pParam);
@@ -958,8 +958,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					D3D12_FEATURE_ROOT_SIGNATURE
 					, &stFeatureData
 					, sizeof(stFeatureData))))
-				{
-					stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+				{// 1.0版 直接丢异常退出了
+					GRS_THROW_IF_FAILED(E_NOTIMPL);
 				}
 
 				D3D12_DESCRIPTOR_RANGE1 stDSPRanges[3] = {};
@@ -1154,7 +1154,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				GRS_SET_D3D12_DEBUGNAME_COMPTR(pIRSPostPass);
 			}}
 
-		//9、编译Shader创建渲染管线状态对象
+		// 8、编译Shader创建渲染管线状态对象
 		{ {
 #if defined(_DEBUG)
 				// Enable better shader debugging with the graphics debugging tools.
@@ -1400,7 +1400,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				//---------------------------------------------------------------------------------------------------
 			}}
 
-		//10、准备参数并启动多个渲染线程
+		// 9、准备参数并启动多个渲染线程
 		{ {
 				USES_CONVERSION;
 				// 球体个性参数
@@ -1473,7 +1473,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 				}
 			}}
 
-		//11、加载DDS噪声纹理，注意用于后处理，所以加载到第二个显卡上
+		// 10、加载DDS噪声纹理，注意用于后处理，所以加载到第二个显卡上
 		{
 			TCHAR pszNoiseTexture[MAX_PATH] = {};
 			StringCchPrintf(pszNoiseTexture, MAX_PATH, _T("%sAssets\\GaussianNoise256.dds"), g_pszAppPath);
@@ -1597,7 +1597,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
 			stGPU[c_nSecondGPU].m_pICMDList->ResourceBarrier(1, &stResStateTransBarrier);
 		}
-		//12、建辅助显卡用来渲染或后处理用的矩形框
+		// 11、建辅助显卡用来渲染或后处理用的矩形框
 		{
 			ST_GRS_VERTEX_QUAD stVertexQuad[] =
 			{	//(   x,     y,    z,    w   )  (  u,    v   )
@@ -1628,11 +1628,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 					, D3D12_RESOURCE_STATE_GENERIC_READ
 					, nullptr
 					, IID_PPV_ARGS(&pIVBQuadUpload)));
-
-			D3D12_SUBRESOURCE_DATA stVBDataQuad = {};
-			stVBDataQuad.pData = reinterpret_cast<UINT8*>(stVertexQuad);
-			stVBDataQuad.RowPitch = nszVBQuad;
-			stVBDataQuad.SlicePitch = stVBDataQuad.RowPitch;
 
 			// 第一遍Copy 
 			BYTE* pData = nullptr;
