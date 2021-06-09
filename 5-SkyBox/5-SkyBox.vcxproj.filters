@@ -40,8 +40,5 @@
     <ClInclude Include="..\WindowsCommons\DDSTextureLoader12.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="..\WindowsCommons\d3dx12.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

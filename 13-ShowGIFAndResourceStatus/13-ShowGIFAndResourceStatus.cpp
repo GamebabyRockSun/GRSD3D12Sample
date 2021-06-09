@@ -99,10 +99,10 @@ inline void GRS_SetDXGIDebugNameIndexed(IDXGIObject*, LPCWSTR, UINT)
 
 #endif
 
-#define GRS_SET_DXGI_DEBUGNAME(x)						GRS_SetDXGIDebugName(x, L#x)
+#define GRS_SET_DXGI_DEBUGNAME(x)								GRS_SetDXGIDebugName(x, L#x)
 #define GRS_SET_DXGI_DEBUGNAME_INDEXED(x, n)			GRS_SetDXGIDebugNameIndexed(x[n], L#x, n)
 
-#define GRS_SET_DXGI_DEBUGNAME_COMPTR(x)				GRS_SetDXGIDebugName(x.Get(), L#x)
+#define GRS_SET_DXGI_DEBUGNAME_COMPTR(x)							GRS_SetDXGIDebugName(x.Get(), L#x)
 #define GRS_SET_DXGI_DEBUGNAME_INDEXED_COMPTR(x, n)		GRS_SetDXGIDebugNameIndexed(x[n].Get(), L#x, n)
 
 
@@ -323,7 +323,7 @@ double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 
 //GIF 文件信息
 TCHAR						 g_pszAppPath[MAX_PATH] = {};
-WCHAR						 g_pszTexcuteFileName[MAX_PATH] = {};   
+WCHAR						 g_pszTexcuteFileName[MAX_PATH] = {};
 ST_GRS_GIF				     g_stGIF = {};
 
 ComPtr<ID3D12Device4>		 g_pID3D12Device4;
@@ -344,19 +344,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 	try
 	{
 		GRS_THROW_IF_FAILED(::CoInitialize(nullptr));  //for WIC & COM
+		HWND												hWnd = nullptr;
+		MSG													msg = {};
 
-		HWND								hWnd = nullptr;
-		MSG									msg = {};
-		
+		int													iWidth = 1024;
+		int													iHeight = 768;
 
-		int									iWidth = 1024;
-		int									iHeight = 768;
-
-		const UINT							nFrameBackBufCount = 3u;
-		UINT								nCurrentFrameIndex = 0;
-		DXGI_FORMAT							emRenderTarget = DXGI_FORMAT_R8G8B8A8_UNORM;
-		const float							c4ClearColor[] = { 0.2f, 0.5f, 1.0f, 1.0f };
-		UINT								nDXGIFactoryFlags = 0U;
+		const UINT										nFrameBackBufCount = 3u;
+		UINT												nCurrentFrameIndex = 0;
+		DXGI_FORMAT								emRenderTarget = DXGI_FORMAT_R8G8B8A8_UNORM;
+		const float										c4ClearColor[] = { 0.2f, 0.5f, 1.0f, 1.0f };
 
 		ComPtr<IDXGIFactory5>				pIDXGIFactory5;
 		ComPtr<IDXGIFactory6>				pIDXGIFactory6;
@@ -366,29 +363,29 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 		ComPtr<ID3D12CommandQueue>			pICMDQueue;  //Direct Command Queue (3D Engine & Other Engine)
 		ComPtr<ID3D12CommandQueue>			pICSQueue;	 //Computer Command Queue (Computer Engine)
 
-		ComPtr<IDXGISwapChain1>				pISwapChain1;
-		ComPtr<IDXGISwapChain3>				pISwapChain3;
-		ComPtr<ID3D12Resource>				pIARenderTargets[nFrameBackBufCount];
-		ComPtr<ID3D12DescriptorHeap>		pIRTVHeap;
+		ComPtr<IDXGISwapChain1>						pISwapChain1;
+		ComPtr<IDXGISwapChain3>						pISwapChain3;
+		ComPtr<ID3D12Resource>						pIARenderTargets[nFrameBackBufCount];
+		ComPtr<ID3D12DescriptorHeap>				pIRTVHeap;
 
-		ComPtr<ID3D12Fence>					pIFence;
+		ComPtr<ID3D12Fence>								pIFence;
 
-		UINT64								n64FenceValue = 0ui64;
+		UINT64														n64FenceValue = 0ui64;
 
 		ComPtr<ID3D12CommandAllocator>		pICMDAlloc;
 		ComPtr<ID3D12GraphicsCommandList>	pICMDList;
 
 		ComPtr<ID3D12CommandAllocator>		pICSAlloc;		// Computer Command Alloc
-		ComPtr<ID3D12GraphicsCommandList>   pICSList;		// Computer Command List
+		ComPtr<ID3D12GraphicsCommandList>	pICSList;		// Computer Command List
 
-		ComPtr<ID3D12RootSignature>			pIRootSignature;
+		ComPtr<ID3D12RootSignature>		pIRootSignature;
 		ComPtr<ID3D12PipelineState>			pIPipelineState;
 
-		ComPtr<ID3D12RootSignature>			pIRSComputer;	// Computer Shader Root Signature
+		ComPtr<ID3D12RootSignature>		pIRSComputer;	// Computer Shader Root Signature
 		ComPtr<ID3D12PipelineState>			pIPSOComputer;  // Computer Pipeline Status Object
 
-		UINT								nRTVDescriptorSize = 0U;
-		UINT								nSRVDescriptorSize = 0U;
+		UINT													nRTVDescriptorSize = 0U;
+		UINT													nSRVDescriptorSize = 0U;
 
 		ComPtr<ID3D12Resource>				pICBVRes;
 		ComPtr<ID3D12Resource>				pIVBRes;
@@ -399,20 +396,20 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 		ComPtr<ID3D12Resource>				pICBGIFFrameInfo; // Computer Shader Const Buffer 
 
-		SIZE_T								szGIFFrameInfo = GRS_UPPER(sizeof(ST_GRS_GIF_FRAME_PARAM), 256);
-		ST_GRS_GIF_FRAME_PARAM*				pstGIFFrameInfo = nullptr;
+		SIZE_T													szGIFFrameInfo = GRS_UPPER(sizeof(ST_GRS_GIF_FRAME_PARAM), 256);
+		ST_GRS_GIF_FRAME_PARAM* pstGIFFrameInfo = nullptr;
 
-		D3D12_VIEWPORT						stViewPort = { 0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-		D3D12_RECT							stScissorRect = { 0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight) };
+		D3D12_VIEWPORT								stViewPort = { 0.0f, 0.0f, static_cast<float>(iWidth), static_cast<float>(iHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+		D3D12_RECT										stScissorRect = { 0, 0, static_cast<LONG>(iWidth), static_cast<LONG>(iHeight) };
 
-		ST_GRS_FRAME_MVP_BUFFER*			pMVPBuffer = nullptr;
-		SIZE_T								szMVPBuffer = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
+		ST_GRS_FRAME_MVP_BUFFER* pMVPBuffer = nullptr;
+		SIZE_T													szMVPBuffer = GRS_UPPER(sizeof(ST_GRS_FRAME_MVP_BUFFER), 256);
 
-		UINT								nVertexCnt = 0;
+		UINT													nVertexCnt = 0;
 		D3D12_VERTEX_BUFFER_VIEW			stVertexBufferView = {};
 		D3D12_INDEX_BUFFER_VIEW				stIndexBufferView = {};
-			   
-		ST_GRS_GIF_FRAME					stGIFFrame = {};
+
+		ST_GRS_GIF_FRAME								stGIFFrame = {};
 
 		// 得到当前的工作目录，方便我们使用相对路径来访问各种资源文件
 		{
@@ -480,9 +477,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			}
 		}
 
-		// 打开显示子系统的调试支持
+		// 创建DXGI Factory对象		
 		{
+			UINT nDXGIFactoryFlags = 0U;
 #if defined(_DEBUG)
+			// 打开显示子系统的调试支持
 			{
 				ComPtr<ID3D12Debug> debugController;
 				if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
@@ -493,14 +492,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 				}
 			}
 #endif
-		}
-
-		// 创建DXGI Factory对象
-		{
 			GRS_THROW_IF_FAILED(CreateDXGIFactory2(nDXGIFactoryFlags, IID_PPV_ARGS(&pIDXGIFactory5)));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory5);
-			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
-			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 			//获取IDXGIFactory6接口
 			GRS_THROW_IF_FAILED(pIDXGIFactory5.As(&pIDXGIFactory6));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIDXGIFactory6);
@@ -518,7 +511,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
 			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
-			
+
 			TCHAR pszWndTitle[MAX_PATH] = {};
 			GRS_THROW_IF_FAILED(pIAdapter1->GetDesc1(&stAdapterDesc));
 			::GetWindowText(hWnd, pszWndTitle, MAX_PATH);
@@ -609,6 +602,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 				g_pID3D12Device4->CreateRenderTargetView(pIARenderTargets[i].Get(), nullptr, stRTVHandle);
 				stRTVHandle.ptr += nRTVDescriptorSize;
 			}
+			// 关闭ALT+ENTER键切换全屏的功能，因为我们没有实现OnSize处理，所以先关闭
+			GRS_THROW_IF_FAILED(pIDXGIFactory5->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		}
 
 		// 创建围栏，用于CPU与GPU线程之间的同步
@@ -650,7 +645,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 			D3D12_VERSIONED_ROOT_SIGNATURE_DESC stRootSignatureDesc = {};
 
-			if ( D3D_ROOT_SIGNATURE_VERSION_1_1 == stFeatureData.HighestVersion )
+			if (D3D_ROOT_SIGNATURE_VERSION_1_1 == stFeatureData.HighestVersion)
 			{
 				// 在GPU上执行SetGraphicsRootDescriptorTable后，我们不修改命令列表中的SRV，因此我们可以使用默认Rang行为:
 				// D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE
@@ -723,6 +718,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 			ComPtr<ID3DBlob> pISignatureBlob;
 			ComPtr<ID3DBlob> pIErrorBlob;
+
 			GRS_THROW_IF_FAILED(D3D12SerializeVersionedRootSignature(&stRootSignatureDesc
 				, &pISignatureBlob
 				, &pIErrorBlob));
@@ -844,66 +840,66 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 		// 编译Shader创建渲染管线状态对象
 		{ {
-			ComPtr<ID3DBlob> pIVSCode;
-			ComPtr<ID3DBlob> pIPSCode;
+				ComPtr<ID3DBlob> pIVSCode;
+				ComPtr<ID3DBlob> pIPSCode;
 #if defined(_DEBUG)
-			// Enable better shader debugging with the graphics debugging tools.
-			UINT nShaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+				// Enable better shader debugging with the graphics debugging tools.
+				UINT nShaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #else
-			UINT nShaderCompileFlags = 0;
+				UINT nShaderCompileFlags = 0;
 #endif
-			//编译为行矩阵形式	   
-			nShaderCompileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
+				//编译为行矩阵形式	   
+				nShaderCompileFlags |= D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
 
-			TCHAR pszShaderFileName[MAX_PATH] = {};
-			StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s13-ShowGIFAndResourceStatus\\Shader\\13-ShowGIFAndResourceStatus.hlsl"), g_pszAppPath);
+				TCHAR pszShaderFileName[MAX_PATH] = {};
+				StringCchPrintf(pszShaderFileName, MAX_PATH, _T("%s13-ShowGIFAndResourceStatus\\Shader\\13-ShowGIFAndResourceStatus.hlsl"), g_pszAppPath);
 
-			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-				, "VSMain", "vs_5_0", nShaderCompileFlags, 0, &pIVSCode, nullptr));
-			GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
-				, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, nullptr));
+				GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+					, "VSMain", "vs_5_0", nShaderCompileFlags, 0, &pIVSCode, nullptr));
+				GRS_THROW_IF_FAILED(D3DCompileFromFile(pszShaderFileName, nullptr, nullptr
+					, "PSMain", "ps_5_0", nShaderCompileFlags, 0, &pIPSCode, nullptr));
 
-			// Define the vertex input layout.
-			D3D12_INPUT_ELEMENT_DESC stInputElementDescs[] =
-			{
-				{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-				{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-			};
+				// Define the vertex input layout.
+				D3D12_INPUT_ELEMENT_DESC stInputElementDescs[] =
+				{
+					{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+					{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+				};
 
-			// 创建 graphics pipeline state object (PSO)对象
-			D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
-			stPSODesc.InputLayout = { stInputElementDescs, _countof(stInputElementDescs) };
-			stPSODesc.pRootSignature = pIRootSignature.Get();
+				// 创建 graphics pipeline state object (PSO)对象
+				D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
+				stPSODesc.InputLayout = { stInputElementDescs, _countof(stInputElementDescs) };
+				stPSODesc.pRootSignature = pIRootSignature.Get();
 
-			stPSODesc.VS.pShaderBytecode = pIVSCode->GetBufferPointer();
-			stPSODesc.VS.BytecodeLength = pIVSCode->GetBufferSize();
+				stPSODesc.VS.pShaderBytecode = pIVSCode->GetBufferPointer();
+				stPSODesc.VS.BytecodeLength = pIVSCode->GetBufferSize();
 
-			stPSODesc.PS.pShaderBytecode = pIPSCode->GetBufferPointer();
-			stPSODesc.PS.BytecodeLength = pIPSCode->GetBufferSize();
+				stPSODesc.PS.pShaderBytecode = pIPSCode->GetBufferPointer();
+				stPSODesc.PS.BytecodeLength = pIPSCode->GetBufferSize();
 
-			stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-			stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+				stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+				stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 
-			stPSODesc.BlendState.AlphaToCoverageEnable = FALSE;
-			stPSODesc.BlendState.IndependentBlendEnable = FALSE;
-			stPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+				stPSODesc.BlendState.AlphaToCoverageEnable = FALSE;
+				stPSODesc.BlendState.IndependentBlendEnable = FALSE;
+				stPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-			stPSODesc.DepthStencilState.DepthEnable = FALSE;
-			stPSODesc.DepthStencilState.StencilEnable = FALSE;
+				stPSODesc.DepthStencilState.DepthEnable = FALSE;
+				stPSODesc.DepthStencilState.StencilEnable = FALSE;
 
-			stPSODesc.SampleMask = UINT_MAX;
-			stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-			stPSODesc.NumRenderTargets = 1;
-			stPSODesc.RTVFormats[0] = emRenderTarget;
-			stPSODesc.SampleDesc.Count = 1;
+				stPSODesc.SampleMask = UINT_MAX;
+				stPSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+				stPSODesc.NumRenderTargets = 1;
+				stPSODesc.RTVFormats[0] = emRenderTarget;
+				stPSODesc.SampleDesc.Count = 1;
 
-			GRS_THROW_IF_FAILED(g_pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc, IID_PPV_ARGS(&pIPipelineState)));
-			GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPipelineState);
-		} }
+				GRS_THROW_IF_FAILED(g_pID3D12Device4->CreateGraphicsPipelineState(&stPSODesc, IID_PPV_ARGS(&pIPipelineState)));
+				GRS_SET_D3D12_DEBUGNAME_COMPTR(pIPipelineState);
+			} }
 
 		// 创建计算管线状态对象
 		{
-			
+
 #if defined(_DEBUG)
 			// Enable better shader debugging with the graphics debugging tools.
 			UINT nShaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -1114,7 +1110,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			GRS_THROW_IF_FAILED(g_pID3D12Device4->CreateCommittedResource(
 				&stHeapProp
 				, D3D12_HEAP_FLAG_NONE
-				, &stRWTextureDesc 
+				, &stRWTextureDesc
 				, D3D12_RESOURCE_STATE_COMMON
 				, nullptr
 				, IID_PPV_ARGS(&g_pIRWTexture)));
@@ -1154,11 +1150,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			//-------------------------------------------------------------------------------------------------------------
 			// 创建 Computer Shader 需要的 Descriptor Heap
 			stSRVHeapDesc.NumDescriptors = 3;  // 1 CBV + 1 Texutre SRV + 1 UAV
-			
+
 			GRS_THROW_IF_FAILED(g_pID3D12Device4->CreateDescriptorHeap(&stSRVHeapDesc, IID_PPV_ARGS(&g_pICSSRVHeap)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(g_pICSSRVHeap);
 
-			
+
 			stCBVDesc.BufferLocation = pICBGIFFrameInfo->GetGPUVirtualAddress();
 			stCBVDesc.SizeInBytes = static_cast<UINT>(szGIFFrameInfo);
 
@@ -1252,7 +1248,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 				//OnComputerShader()
 				{
-					if ( 0 == g_stGIF.m_nCurrentFrame || (n64tmCurrent - n64tmFrameStart) >= n64GIFPlayDelay )
+					if (0 == g_stGIF.m_nCurrentFrame || (n64tmCurrent - n64tmFrameStart) >= n64GIFPlayDelay)
 					{
 						GRS_THROW_IF_FAILED(pICSAlloc->Reset());
 						GRS_THROW_IF_FAILED(pICSList->Reset(pICSAlloc.Get(), pIPSOComputer.Get()));
@@ -1287,7 +1283,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 							, GRS_ARGB_A(g_stGIF.m_nBkColor));
 						pstGIFFrameInfo->m_nFrame = g_stGIF.m_nCurrentFrame;
 						pstGIFFrameInfo->m_nDisposal = stGIFFrame.m_nFrameDisposal;
-						
+
 						pstGIFFrameInfo->m_nLeftTop[0] = stGIFFrame.m_nLeftTop[0];	//Frame Image Left
 						pstGIFFrameInfo->m_nLeftTop[1] = stGIFFrame.m_nLeftTop[1];	//Frame Image Top
 						pstGIFFrameInfo->m_nFrameWH[0] = stGIFFrame.m_nFrameWH[0];	//Frame Image Width
@@ -1304,7 +1300,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 						g_pID3D12Device4->CreateShaderResourceView(pITexture.Get(), &stSRVDesc, stSRVHandle);
 
 						n64GIFPlayDelay = stGIFFrame.m_nFrameDelay;
-						
+
 						//更新到下一帧帧号
 						g_stGIF.m_nCurrentFrame = (++g_stGIF.m_nCurrentFrame) % g_stGIF.m_nFrames;
 
@@ -1312,14 +1308,14 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 					}
 					else
 					{
-						if(!SUCCEEDED(ULongLongSub(n64GIFPlayDelay, (n64tmCurrent - n64tmFrameStart), &n64GIFPlayDelay)))
+						if (!SUCCEEDED(ULongLongSub(n64GIFPlayDelay, (n64tmCurrent - n64tmFrameStart), &n64GIFPlayDelay)))
 						{// 这个调用失败说明一定是已经超时到下一帧的时间了，那就开始下一循环绘制下一帧
 							n64GIFPlayDelay = 0;
 						}
 						bReDrawFrame = FALSE; //只更新延迟时间，不绘制
 					}
 
-					if ( bReDrawFrame )
+					if (bReDrawFrame)
 					{
 						// 开始计算管线运行
 						D3D12_RESOURCE_BARRIER stRWResBeginBarrier = {};
@@ -1348,7 +1344,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 
 						// Computer!
 						// 注意：按子帧大小来发起计算线程
-						pICSList->Dispatch(stGIFFrame.m_nFrameWH[0], stGIFFrame.m_nFrameWH[1],1);
+						pICSList->Dispatch(stGIFFrame.m_nFrameWH[0], stGIFFrame.m_nFrameWH[1], 1);
 						//pICSList->Dispatch(g_stGIF.m_nWidth, g_stGIF.m_nHeight, 1);
 
 						// 开始计算管线运行
@@ -1428,7 +1424,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 					const UINT64 n64CurrentFenceValue = n64FenceValue;
 					GRS_THROW_IF_FAILED(pICMDQueue->Signal(pIFence.Get(), n64CurrentFenceValue));
 					GRS_THROW_IF_FAILED(pICSQueue->Wait(pIFence.Get(), n64CurrentFenceValue))
-					GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(n64CurrentFenceValue, g_hEventFence));
+						GRS_THROW_IF_FAILED(pIFence->SetEventOnCompletion(n64CurrentFenceValue, g_hEventFence));
 					n64FenceValue++;
 				}
 
@@ -1461,7 +1457,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 			}
 		}
 	}
-	catch (CGRSCOMException & e)
+	catch (CGRSCOMException& e)
 	{//发生了COM异常
 		e;
 	}
@@ -1601,7 +1597,7 @@ BOOL LoadGIF(LPCWSTR pszGIFFileName, IWICImagingFactory* pIWICFactory, ST_GRS_GI
 			}
 		}
 	}
-	catch (CGRSCOMException & e)
+	catch (CGRSCOMException& e)
 	{
 		e;
 		bRet = FALSE;
@@ -1732,7 +1728,7 @@ BOOL LoadGIFFrame(IWICImagingFactory* pIWICFactory, ST_GRS_GIF& g_stGIF, ST_GRS_
 
 		PropVariantClear(&stCOMPropValue);
 	}
-	catch (CGRSCOMException & e)
+	catch (CGRSCOMException& e)
 	{//发生了COM异常
 		e;
 		bRet = FALSE;
@@ -1766,7 +1762,7 @@ BOOL UploadGIFFrame(ID3D12Device4* pID3D12Device4, ID3D12GraphicsCommandList* pI
 		{//从属性解析出的帧画面大小与转换后的画面大小不一致
 			throw CGRSCOMException(S_FALSE);
 		}
-		
+
 		//获取图片像素的位大小的BPP（Bits Per Pixel）信息，用以计算图片行数据的真实大小（单位：字节）
 		ComPtr<IWICComponentInfo> pIWICmntinfo;
 		WICPixelFormatGUID stGuidTargetFormat = {};
@@ -1884,8 +1880,8 @@ BOOL UploadGIFFrame(ID3D12Device4* pID3D12Device4, ID3D12GraphicsCommandList* pI
 		for (UINT y = 0; y < nTextureRowNum; ++y)
 		{
 			// 第一个Copy命令，由CPU完成，将数据从内存复制到上传堆（共享内存）中
-			memcpy(pDestSlice + static_cast<SIZE_T>(stTxtLayouts.Footprint.RowPitch)* y
-				, pSrcSlice + static_cast<SIZE_T>(nTextureRowPitch)* y
+			memcpy(pDestSlice + static_cast<SIZE_T>(stTxtLayouts.Footprint.RowPitch) * y
+				, pSrcSlice + static_cast<SIZE_T>(nTextureRowPitch) * y
 				, nTextureRowPitch);
 		}
 		//取消映射 对于易变的数据如每帧的变换矩阵等数据，可以撒懒不用Unmap了，
@@ -1925,7 +1921,7 @@ BOOL UploadGIFFrame(ID3D12Device4* pID3D12Device4, ID3D12GraphicsCommandList* pI
 
 		pICMDList->ResourceBarrier(1, &stResBar);
 	}
-	catch (CGRSCOMException & e)
+	catch (CGRSCOMException& e)
 	{
 		e;
 		bRet = FALSE;
@@ -1977,7 +1973,7 @@ BOOL LoadMeshVertex(const CHAR* pszMeshFileName, UINT& nVertexCnt, ST_GRS_VERTEX
 			ppIndices[i] = i;
 		}
 	}
-	catch (CGRSCOMException & e)
+	catch (CGRSCOMException& e)
 	{
 		e;
 		bRet = FALSE;
@@ -1998,7 +1994,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (VK_TAB == n16KeyCode)
 		{// 按Tab键切换选择另外的GIF来显示
-			
+
 			OPENFILENAME ofn = {};
 			ofn.lStructSize = sizeof(ofn);
 			ofn.hwndOwner = hWnd;
@@ -2057,7 +2053,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 以上是之前的注释，本想偷懒，可没想到我就先遇到问题了，当然不是每次都会发生错误
 				// 解决的方法当时Wait一下Fence Event，这里依然使用最懒的方法，就是在上面等个20ms完事
 				// 这个等待不能是INFINITE，如果没有渲染也没有设置这个事件句柄给Fence的话，它永远不会有信号，那样等待就像死锁了一样
-				   
+
 				DWORD dwRet = WaitForSingleObject(g_hEventFence, 40);
 
 				g_pIRWTexture.Reset();
@@ -2083,13 +2079,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				g_pID3D12Device4->CreateUnorderedAccessView(g_pIRWTexture.Get(), nullptr, &stUAVDesc, stSRVHandle);
 
 				//这里Set一下，实质上就是消除了刚刚那个Wait的副作用，因为我们主消息循环里也是Wait这个Event Handle来保持循环状态的
-				if ( WAIT_OBJECT_0 == dwRet )
+				if (WAIT_OBJECT_0 == dwRet)
 				{
 					SetEvent(g_hEventFence);
 				}
 			}
 		}
-		
+
 		if (VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode)
 		{
 			//double g_fPalstance = 10.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒

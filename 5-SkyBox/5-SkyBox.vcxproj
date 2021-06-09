@@ -165,7 +165,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\WindowsCommons\d3dx12.h" />
     <ClInclude Include="..\WindowsCommons\dds.h" />
     <ClInclude Include="..\WindowsCommons\DDSTextureLoader12.h" />
   </ItemGroup>

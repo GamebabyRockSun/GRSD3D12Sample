@@ -12,7 +12,6 @@
 #include <dxgidebug.h>
 #endif
 #include <wincodec.h> //for WIC
-//#include "..\WindowsCommons\d3dx12.h"
 
 using namespace Microsoft;
 using namespace Microsoft::WRL;

@@ -14,7 +14,6 @@
 #include <dxgidebug.h>
 #endif
 #include <DirectXMath.h>
-//#include "..\WindowsCommons\d3dx12.h"
 #include "..\WindowsCommons\DDSTextureLoader12.h"
 
 using namespace std;
