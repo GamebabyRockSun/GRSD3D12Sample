@@ -65,3 +65,6 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 
 1、去除了示例14多线程阴影渲染示例中所有d3dx12.h的引用；目前阴影矩阵还有点问题，没有来及修复，明天看时间调试修复一下；
 
+2021-6-10
+
+1、添加了Assimp导入3D模型，并运行3D骨骼动画的第17号示例；

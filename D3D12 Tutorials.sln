@@ -35,6 +35,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "15-CPUThreadsBarrier", "15-
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "16-Assimp_Data_Display", "16-Assimp_Data_Display\16-Assimp_Data_Display.vcxproj", "{BE6996B3-DFB4-47C8-8EA2-1209D181D534}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "17-D3D12_Assimp_Animation", "17-D3D12_Assimp_Animation\17-D3D12_Assimp_Animation.vcxproj", "{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -237,6 +239,18 @@ Global
 		{BE6996B3-DFB4-47C8-8EA2-1209D181D534}.Release|x64.Build.0 = Release|x64
 		{BE6996B3-DFB4-47C8-8EA2-1209D181D534}.Release|x86.ActiveCfg = Release|Win32
 		{BE6996B3-DFB4-47C8-8EA2-1209D181D534}.Release|x86.Build.0 = Release|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Debug|x64.ActiveCfg = Debug|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Debug|x64.Build.0 = Debug|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Debug|x86.ActiveCfg = Debug|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Debug|x86.Build.0 = Debug|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Profile|x64.ActiveCfg = Debug|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Profile|x64.Build.0 = Debug|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Profile|x86.ActiveCfg = Debug|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Profile|x86.Build.0 = Debug|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Release|x64.ActiveCfg = Release|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Release|x64.Build.0 = Release|x64
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Release|x86.ActiveCfg = Release|Win32
+		{6BFFBD6C-B171-4C22-8878-4BCAFBE4CF0F}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
