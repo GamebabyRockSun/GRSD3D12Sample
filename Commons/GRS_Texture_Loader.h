@@ -55,9 +55,9 @@ __inline BOOL LoadTextureFromMem( ID3D12GraphicsCommandList* pCMDList
             , IID_PPV_ARGS( &pITexture ) ) );
 
         //获取需要的上传堆资源缓冲的大小，这个尺寸通常大于实际图片的尺寸
-        D3D12_RESOURCE_DESC Desc = pITexture->GetDesc();
+        D3D12_RESOURCE_DESC stDestDesc = pITexture->GetDesc();
         UINT64 n64UploadBufferSize = 0;
-        pID3D12Device->GetCopyableFootprints( &Desc, 0, 1, 0, nullptr, nullptr, nullptr, &n64UploadBufferSize );
+        pID3D12Device->GetCopyableFootprints( &stDestDesc, 0, 1, 0, nullptr, nullptr, nullptr, &n64UploadBufferSize );
 
         stTextureHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
 
@@ -85,14 +85,11 @@ __inline BOOL LoadTextureFromMem( ID3D12GraphicsCommandList* pCMDList
 
         //获取向上传堆拷贝纹理数据的一些纹理转换尺寸信息
         //对于复杂的DDS纹理这是非常必要的过程
-
         UINT   nNumSubresources = 1u;  //我们只有一副图片，即子资源个数为1
         UINT   nTextureRowNum = 0u;
         UINT64 n64TextureRowSizes = 0u;
         UINT64 n64RequiredSize = 0u;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT	stTxtLayouts = {};
-
-        D3D12_RESOURCE_DESC stDestDesc = pITexture->GetDesc();
 
         pID3D12Device->GetCopyableFootprints( &stDestDesc
             , 0
@@ -182,13 +179,15 @@ __inline BOOL LoadTextureFromFile(
         UINT 		nTextureH = 0;
         UINT 		nPicRowPitch = 0;
 
-        if ( WICLoadImageFromFile( pszTextureFile
+        bRet = WICLoadImageFromFile( pszTextureFile
             , emTextureFormat
             , nTextureW
             , nTextureH
             , nPicRowPitch
             , pbImageData
-            , szImageBufferSize ) )
+            , szImageBufferSize );
+
+        if ( bRet )
         {
             bRet = LoadTextureFromMem( pCMDList
                 , pbImageData

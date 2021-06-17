@@ -1273,8 +1273,8 @@ UINT __stdcall RenderThread(void* pParam)
 			stIBV.Format = DXGI_FORMAT_R32_UINT;
 			stIBV.SizeInBytes = nIndexCnt * sizeof(UINT);
 
-			::HeapFree(::GetProcessHeap(), 0, pstVertices);
-			::HeapFree(::GetProcessHeap(), 0, pnIndices);
+			GRS_SAFE_FREE( pstVertices);
+			GRS_SAFE_FREE( pnIndices);
 		}
 
 		//4、创建常量缓冲 
@@ -1643,12 +1643,8 @@ BOOL LoadMeshVertex(const CHAR*pszMeshFileName, UINT&nVertexCnt, ST_GRS_VERTEX*&
 		fin.get(input);
 		fin.get(input);
 
-		ppVertex = (ST_GRS_VERTEX*)HeapAlloc(::GetProcessHeap()
-			, HEAP_ZERO_MEMORY
-			, nVertexCnt * sizeof(ST_GRS_VERTEX));
-		ppIndices = (UINT*)HeapAlloc(::GetProcessHeap()
-			, HEAP_ZERO_MEMORY
-			, nVertexCnt * sizeof(UINT));
+		ppVertex = (ST_GRS_VERTEX*)GRS_CALLOC( nVertexCnt * sizeof(ST_GRS_VERTEX));
+		ppIndices = (UINT*) GRS_CALLOC( nVertexCnt * sizeof(UINT));
 
 		for (UINT i = 0; i < nVertexCnt; i++)
 		{

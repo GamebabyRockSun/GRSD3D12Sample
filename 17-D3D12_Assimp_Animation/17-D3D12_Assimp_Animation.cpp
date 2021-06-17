@@ -83,25 +83,25 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     HWND								hWnd = nullptr;
     MSG									msg = {};
 
-    const UINT						nFrameBackBufCount = 3u;
-    UINT								nFrameIndex = 0;
-    DXGI_FORMAT				emRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-    const float						faClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    const UINT						    nFrameBackBufCount = 3u;
+    UINT							    nFrameIndex = 0;
+    DXGI_FORMAT				            emRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    const float						    faClearColor[] = { 0.17647f, 0.549f, 0.941176f, 1.0f };
 
 
     UINT								nRTVDescriptorSize = 0U;
     UINT								nSamplerDescriptorSize = 0;
     UINT								nCBVSRVDescriptorSize = 0;
 
-    D3D12_VIEWPORT			stViewPort = { 0.0f, 0.0f, static_cast<float>( iWidth ), static_cast<float>( iHeight ), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-    D3D12_RECT					stScissorRect = { 0, 0, static_cast<LONG>( iWidth ), static_cast<LONG>( iHeight ) };
+    D3D12_VIEWPORT			            stViewPort = { 0.0f, 0.0f, static_cast<float>( iWidth ), static_cast<float>( iHeight ), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+    D3D12_RECT					        stScissorRect = { 0, 0, static_cast<LONG>( iWidth ), static_cast<LONG>( iHeight ) };
 
     D3D_FEATURE_LEVEL					emFeatureLevel = D3D_FEATURE_LEVEL_12_1;
 
-    ComPtr<IDXGIFactory5>				            pIDXGIFactory5;
-    ComPtr<IDXGIFactory6>				            pIDXGIFactory6;
-    ComPtr<IDXGIAdapter1>				            pIAdapter1;
-    ComPtr<ID3D12Device4>				            pID3D12Device4;
+    ComPtr<IDXGIFactory5>				pIDXGIFactory5;
+    ComPtr<IDXGIFactory6>				pIDXGIFactory6;
+    ComPtr<IDXGIAdapter1>				pIAdapter1;
+    ComPtr<ID3D12Device4>				pID3D12Device4;
 
     ComPtr<ID3D12CommandQueue>			pIMainCMDQueue;
     ComPtr<ID3D12CommandAllocator>		pIMainCMDAlloc;
@@ -111,11 +111,11 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     ComPtr<ID3D12CommandAllocator>		pICopyCMDAlloc;
     ComPtr<ID3D12GraphicsCommandList>	pICopyCMDList;
 
-    ComPtr<ID3D12Fence>					            pIFence;
-    UINT64								                        n64FenceValue = 0ui64;
-    HANDLE								                        hEventFence = nullptr;
-    D3D12_RESOURCE_BARRIER				        stBeginResBarrier = {};
-    D3D12_RESOURCE_BARRIER				        stEneResBarrier = {};
+    ComPtr<ID3D12Fence>					pIFence;
+    UINT64								n64FenceValue = 0ui64;
+    HANDLE								hEventFence = nullptr;
+    D3D12_RESOURCE_BARRIER				stBeginResBarrier = {};
+    D3D12_RESOURCE_BARRIER				stEneResBarrier = {};
 
     ComPtr<IDXGISwapChain1>				pISwapChain1;
     ComPtr<IDXGISwapChain3>				pISwapChain3;
@@ -124,22 +124,20 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     ComPtr<ID3D12DescriptorHeap>		pIDSVHeap;
     ComPtr<ID3D12Resource>				pIDepthStencilBuffer;
 
-    ComPtr<ID3DBlob>					        pIVSModel;
-    ComPtr<ID3DBlob>					        pIPSModel;
-    ComPtr<ID3D12RootSignature>		pIRootSignature;
+    ComPtr<ID3DBlob>					pIVSModel;
+    ComPtr<ID3DBlob>					pIPSModel;
+    ComPtr<ID3D12RootSignature>		    pIRootSignature;
     ComPtr<ID3D12PipelineState>			pIPSOModel;
     ComPtr<ID3D12PipelineState>			pIPSOWireFrame;
 
     ComPtr<ID3D12DescriptorHeap>		pICBVSRVHeap;
     ComPtr<ID3D12DescriptorHeap>		pISamplerHeap;
 
+    ComPtr<ID3D12Heap>					pIUploadHeapModel;
+    ComPtr<ID3D12Heap>					pIDefaultHeapModel;
 
-
-    ComPtr<ID3D12Heap>					    pIUploadHeapModel;
-    ComPtr<ID3D12Heap>					    pIDefaultHeapModel;
-
-    ComPtr<ID3D12Heap>					    pIUploadHeapIndices;
-    ComPtr<ID3D12Heap>					    pIDefaultHeapIndices;
+    ComPtr<ID3D12Heap>					pIUploadHeapIndices;
+    ComPtr<ID3D12Heap>					pIDefaultHeapIndices;
 
     ComPtr<ID3D12Resource>				pIVBPositionsUp;
     ComPtr<ID3D12Resource>				pIVBNormalsUp;
@@ -163,13 +161,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     ComPtr<ID3D12Resource>				pICBMVP;
     ComPtr<ID3D12Resource>				pICBBones;
 
-    ST_GRS_CB_MVP* pstCBMVP = nullptr;
-    ST_GRS_CB_BONES* pstBones = nullptr;
-
-    ComPtr<IWICImagingFactory>			    pIWICFactory;
-    ComPtr<IWICBitmapDecoder>			    pIWICDecoder;
-    ComPtr<IWICBitmapFrameDecode>		pIWICFrame;
-    ComPtr<IWICBitmapSource>			        pIBMP;
+    ST_GRS_CB_MVP*                      pstCBMVP = nullptr;
+    ST_GRS_CB_BONES*                    pstBones = nullptr;
 
     CAtlArray<ComPtr<ID3D12Resource>>	arTexture;
     CAtlArray<ComPtr<ID3D12Resource>>	arTextureUp;
@@ -1285,7 +1278,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stEneResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         }
 
-
         DWORD dwRet = 0;
         BOOL bExit = FALSE;
         D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle = pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
@@ -1558,28 +1550,48 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }
 
         XMVECTOR vDelta = { 0.0f,0.0f,1.0f,0.0f };
-        if ( VK_UP == n16KeyCode )
+        // Z-Öá
+        if ( VK_UP == n16KeyCode || 'w' == n16KeyCode || 'W' == n16KeyCode )
         {
             g_v4EyePos = XMVectorAdd( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorAdd( g_v4LookAt, vDelta );
         }
 
-        if ( VK_DOWN == n16KeyCode )
+        if ( VK_DOWN == n16KeyCode || 's' == n16KeyCode || 'S' == n16KeyCode )
         {
             g_v4EyePos = XMVectorSubtract( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorSubtract( g_v4LookAt, vDelta );
         }
 
+        // X-Öá
         vDelta = { 1.0f,0.0f,0.0f,0.0f };
-        if ( VK_LEFT == n16KeyCode )
+        if ( VK_LEFT == n16KeyCode || 'a' == n16KeyCode || 'A' == n16KeyCode )
         {
             g_v4EyePos = XMVectorAdd( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorAdd( g_v4LookAt, vDelta );
         }
 
-        if ( VK_RIGHT == n16KeyCode )
+        if ( VK_RIGHT == n16KeyCode || 'd' == n16KeyCode || 'D' == n16KeyCode )
         {
             g_v4EyePos = XMVectorSubtract( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorSubtract( g_v4LookAt, vDelta );
         }
 
+        // Y-Öá
+        vDelta = { 0.0f,1.0f,0.0f,0.0f };
+        if ( VK_PRIOR == n16KeyCode || 'r' == n16KeyCode || 'R' == n16KeyCode )
+        {
+            g_v4EyePos = XMVectorAdd( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorAdd( g_v4LookAt, vDelta );
+        }
 
+        if ( VK_NEXT == n16KeyCode || 'f' == n16KeyCode || 'F' == n16KeyCode )
+        {
+            g_v4EyePos = XMVectorSubtract( g_v4EyePos, vDelta );
+            g_v4LookAt = XMVectorSubtract( g_v4LookAt, vDelta );
+        }
+
+        // Ëõ·Å
         if ( VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode )
         {
             g_fScaling += 1.0f;

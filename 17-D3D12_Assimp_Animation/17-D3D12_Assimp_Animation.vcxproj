@@ -162,6 +162,11 @@
     <ClInclude Include="..\Commons\GRS_Texture_Loader.h" />
     <ClInclude Include="..\Commons\GRS_WIC_Utility.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Shader\simple_bones_animation_multitex.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
