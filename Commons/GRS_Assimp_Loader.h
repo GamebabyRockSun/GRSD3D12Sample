@@ -95,26 +95,26 @@ typedef CAtlArray<ST_GRS_SUBMESH_DATA> CGRSSubMesh;
 const UINT			g_ncSlotCnt = 4;		// 用4个插槽上传顶点数据
 struct ST_GRS_MESH_DATA
 {
-	XMMATRIX						m_mxModel;
-	CStringA							m_strFileName;
-	const aiScene*					m_paiModel;
+	const aiScene*		m_paiModel;
+	CStringA			m_strFileName;
+	XMMATRIX			m_mxModel;
 
-	CGRSSubMesh					m_arSubMeshInfo;
+	CGRSSubMesh			m_arSubMeshInfo;
 
-	CGRSARPositions			m_arPositions;
-	CGRSARNormals				m_arNormals;
-	CGRSARTexCoords			m_arTexCoords;
-	CGRSARVertexBones		m_arBoneIndices;
-	CGRSARIndices				m_arIndices;
-	//CGRSARTTextureName	m_arTextureName;
+	CGRSARPositions		m_arPositions;
+	CGRSARNormals		m_arNormals;
+	CGRSARTexCoords		m_arTexCoords;
+	CGRSARVertexBones	m_arBoneIndices;
+	CGRSARIndices		m_arIndices;
+
 	CGRSMapString2UINT	m_mapTextrueName2Index;
-	CGRSMapUINT2UINT		m_mapTextureIndex2HeapIndex;
+	CGRSMapUINT2UINT	m_mapTextureIndex2HeapIndex;
 
-	CGRSARBoneDatas			m_arBoneDatas;
+	CGRSARBoneDatas		m_arBoneDatas;
 	CGRSMapString2UINT	m_mapName2Bone;			//名称->骨骼的索引
 	CGRSMapString2UINT	m_mapAnimName2Index;	//名称->动画的索引
 
-	UINT								m_nCurrentAnimIndex;	// 当前播放的动画序列索引
+	UINT				m_nCurrentAnimIndex;	// 当前播放的动画序列索引（当前动作）
 };
 
 __inline const XMMATRIX& MXEqual(XMMATRIX& mxDX, const aiMatrix4x4& mxAI)

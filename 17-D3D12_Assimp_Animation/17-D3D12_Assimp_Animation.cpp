@@ -78,16 +78,16 @@ LRESULT CALLBACK WndProc( HWND, UINT, WPARAM, LPARAM );
 
 int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    lpCmdLine, int nCmdShow )
 {
-    int									iWidth = 1024;
-    int									iHeight = 768;
+    int									iWidth = 1280;
+    int									iHeight = 800;
     HWND								hWnd = nullptr;
     MSG									msg = {};
 
     const UINT						    nFrameBackBufCount = 3u;
     UINT							    nFrameIndex = 0;
     DXGI_FORMAT				            emRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    DXGI_FORMAT                         emDepthStencilFormat = DXGI_FORMAT_D32_FLOAT;
     const float						    faClearColor[] = { 0.17647f, 0.549f, 0.941176f, 1.0f };
-
 
     UINT								nRTVDescriptorSize = 0U;
     UINT								nSamplerDescriptorSize = 0;
@@ -98,9 +98,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
     D3D_FEATURE_LEVEL					emFeatureLevel = D3D_FEATURE_LEVEL_12_1;
 
-    ComPtr<IDXGIFactory5>				pIDXGIFactory5;
     ComPtr<IDXGIFactory6>				pIDXGIFactory6;
-    ComPtr<IDXGIAdapter1>				pIAdapter1;
     ComPtr<ID3D12Device4>				pID3D12Device4;
 
     ComPtr<ID3D12CommandQueue>			pIMainCMDQueue;
@@ -117,7 +115,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     D3D12_RESOURCE_BARRIER				stBeginResBarrier = {};
     D3D12_RESOURCE_BARRIER				stEneResBarrier = {};
 
-    ComPtr<IDXGISwapChain1>				pISwapChain1;
+
     ComPtr<IDXGISwapChain3>				pISwapChain3;
     ComPtr<ID3D12DescriptorHeap>		pIRTVHeap;
     ComPtr<ID3D12Resource>				pIARenderTargets[nFrameBackBufCount];
@@ -164,9 +162,43 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     ST_GRS_CB_MVP*                      pstCBMVP = nullptr;
     ST_GRS_CB_BONES*                    pstBones = nullptr;
 
+    // 纹理数组，一般模型中会关联多个纹理，本示例中目前仅使用基本的纹理
     CAtlArray<ComPtr<ID3D12Resource>>	arTexture;
     CAtlArray<ComPtr<ID3D12Resource>>	arTextureUp;
+
     USES_CONVERSION;
+
+    D3D12_HEAP_PROPERTIES stDefautHeapProps = {};
+    stDefautHeapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
+    stDefautHeapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    stDefautHeapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    stDefautHeapProps.CreationNodeMask = 0;
+    stDefautHeapProps.VisibleNodeMask = 0;
+
+    D3D12_HEAP_PROPERTIES stUploadHeapProps = {};
+    stUploadHeapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+    stUploadHeapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    stUploadHeapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    stUploadHeapProps.CreationNodeMask = 0;
+    stUploadHeapProps.VisibleNodeMask = 0;
+
+    D3D12_RESOURCE_DESC stBufferResSesc = {};
+    stBufferResSesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    stBufferResSesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    stBufferResSesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    stBufferResSesc.Format = DXGI_FORMAT_UNKNOWN;
+    stBufferResSesc.Width = 0;
+    stBufferResSesc.Height = 1;
+    stBufferResSesc.DepthOrArraySize = 1;
+    stBufferResSesc.MipLevels = 1;
+    stBufferResSesc.SampleDesc.Count = 1;
+    stBufferResSesc.SampleDesc.Quality = 0;
+
+    D3D12_RESOURCE_BARRIER stResStateTransBarrier = {};
+    stResStateTransBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    stResStateTransBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    stResStateTransBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    
     try
     {
         ::CoInitialize( nullptr );  //for WIC & COM
@@ -200,18 +232,11 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             StringCchCopyA( g_pszAppPathA, MAX_PATH, T2A( g_pszAppPath ) );
         }
 
-        // 1、载入默认的模型
+        // 1、载入模型
         {
-            g_stMeshData.m_strFileName = CString( g_pszAppPathA ) + "Assets\\The3DModel\\hero.x";
+            g_stMeshData.m_strFileName.Format( "%Assets\\The3DModel\\hero.x", g_pszAppPathA );
 
-            CHAR pszAppPathA[MAX_PATH] = {};
-            StringCchCopyA( pszAppPathA, MAX_PATH, T2A( g_pszAppPath ) );
-
-            //CHAR pXFile[MAX_PATH] = {};
-            //StringCchPrintfA( pXFile, MAX_PATH, "%Assets\\The3DModel\\hero.x", pszAppPathA );
-            g_stMeshData.m_strFileName.Format( "%Assets\\The3DModel\\hero.x", pszAppPathA );
-            OPENFILENAMEA ofn;
-            RtlZeroMemory( &ofn, sizeof( ofn ) );
+            OPENFILENAMEA ofn = {};
             ofn.lStructSize = sizeof( ofn );
             ofn.hwndOwner = ::GetConsoleWindow();
             ofn.lpstrFilter = "x 文件\0*.x;*.X\0OBJ文件\0*.obj\0FBX文件\0*.fbx\0所有文件\0*.*\0";
@@ -222,7 +247,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             if ( !GetOpenFileNameA( &ofn ) )
             {
-                g_stMeshData.m_strFileName.Format( "%Assets\\The3DModel\\hero.x", pszAppPathA );
+                g_stMeshData.m_strFileName.Format( "%Assets\\The3DModel\\hero.x", g_pszAppPathA );
             }
 
             if ( !LoadMesh( g_stMeshData.m_strFileName, g_stMeshData ) )
@@ -284,6 +309,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                 nDXGIFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
             }
 #endif
+            ComPtr<IDXGIFactory5> pIDXGIFactory5;
             GRS_THROW_IF_FAILED( CreateDXGIFactory2( nDXGIFactoryFlags, IID_PPV_ARGS( &pIDXGIFactory5 ) ) );
             GRS_SET_DXGI_DEBUGNAME_COMPTR( pIDXGIFactory5 );
 
@@ -294,6 +320,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         // 4、枚举适配器创建设备
         {//选择NUMA架构的独显来创建3D设备对象,暂时先不支持集显了，当然你可以修改这些行为
+            ComPtr<IDXGIAdapter1> pIAdapter1;
             GRS_THROW_IF_FAILED( pIDXGIFactory6->EnumAdapterByGpuPreference( 0
                 , DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
                 , IID_PPV_ARGS( &pIAdapter1 ) ) );
@@ -344,6 +371,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIMainCMDList );
 
+             // 创建Copy命令队列
             stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommandQueue( &stQueueDesc, IID_PPV_ARGS( &pICopyCMDQueue ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pICopyCMDQueue );
@@ -354,7 +382,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pICopyCMDAlloc );
 
-            // 创建图形命令列表
+            // 创建Copy命令列表
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommandList(
                 0
                 , D3D12_COMMAND_LIST_TYPE_COPY
@@ -378,6 +406,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stSwapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
             stSwapChainDesc.Scaling = DXGI_SCALING_NONE;
 
+            ComPtr<IDXGISwapChain1> pISwapChain1;
+
             GRS_THROW_IF_FAILED( pIDXGIFactory6->CreateSwapChainForHwnd(
                 pIMainCMDQueue.Get(),		// 交换链需要命令队列，Present命令要执行
                 hWnd,
@@ -388,9 +418,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             ) );
 
             GRS_SET_DXGI_DEBUGNAME_COMPTR( pISwapChain1 );
-
             GRS_THROW_IF_FAILED( pISwapChain1.As( &pISwapChain3 ) );
-
             GRS_SET_DXGI_DEBUGNAME_COMPTR( pISwapChain3 );
 
             //得到当前后缓冲区的序号，也就是下一个将要呈送显示的缓冲区的序号
@@ -412,7 +440,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             }
 
-           //创建RTV的描述符
+            //创建RTV的描述符
             {
                 D3D12_CPU_DESCRIPTOR_HANDLE stRTVHandle
                     = pIRTVHeap->GetCPUDescriptorHandleForHeapStart();
@@ -440,21 +468,14 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
         // 7、创建深度缓冲及深度缓冲描述符堆
         {
             D3D12_DEPTH_STENCIL_VIEW_DESC stDepthStencilDesc = {};
-            stDepthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
+            stDepthStencilDesc.Format = emDepthStencilFormat;
             stDepthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
             stDepthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
 
             D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-            depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+            depthOptimizedClearValue.Format = emDepthStencilFormat;
             depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
             depthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-            D3D12_HEAP_PROPERTIES stDSHeapProp = {  };
-            stDSHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-            stDSHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-            stDSHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-            stDSHeapProp.CreationNodeMask = 0;
-            stDSHeapProp.VisibleNodeMask = 0;
 
             D3D12_RESOURCE_DESC stDSTex2DDesc = {};
             stDSTex2DDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -463,7 +484,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stDSTex2DDesc.Height = iHeight;
             stDSTex2DDesc.DepthOrArraySize = 1;
             stDSTex2DDesc.MipLevels = 0;
-            stDSTex2DDesc.Format = DXGI_FORMAT_D32_FLOAT;
+            stDSTex2DDesc.Format = emDepthStencilFormat;
             stDSTex2DDesc.SampleDesc.Count = 1;
             stDSTex2DDesc.SampleDesc.Quality = 0;
             stDSTex2DDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -472,7 +493,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             //使用隐式默认堆创建一个深度蜡板缓冲区，
             //因为基本上深度缓冲区会一直被使用，重用的意义不大，所以直接使用隐式堆，图方便
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommittedResource(
-                &stDSHeapProp
+                &stDefautHeapProps
                 , D3D12_HEAP_FLAG_NONE
                 , &stDSTex2DDesc
                 , D3D12_RESOURCE_STATE_DEPTH_WRITE
@@ -673,14 +694,14 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                 GRS_THROW_IF_FAILED( hr );
             }
 
-            // 我们多添加了一个法线的定义，但目前Shader中我们并没有使用
+            // 定义传入管线的数据结构，这里使用了多Slot方式，注意Slot的用法
             D3D12_INPUT_ELEMENT_DESC stIALayoutSphere[] =
             {
-                { "POSITION",		    0, DXGI_FORMAT_R32G32B32A32_FLOAT,   0,	0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "NORMAL",			0, DXGI_FORMAT_R32G32B32A32_FLOAT,   1,	0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "TEXCOORD",		0, DXGI_FORMAT_R32G32_FLOAT,                2,	0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "BLENDINDICES",	0, DXGI_FORMAT_R32G32B32A32_UINT,      3,	0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "BLENDWEIGHT",	0, DXGI_FORMAT_R32G32B32A32_FLOAT,    3,	16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+                { "POSITION",	  0, DXGI_FORMAT_R32G32B32A32_FLOAT,   0,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+                { "NORMAL",		  0, DXGI_FORMAT_R32G32B32A32_FLOAT,   1,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+                { "TEXCOORD",	  0, DXGI_FORMAT_R32G32_FLOAT,         2,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+                { "BLENDINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT,    3,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+                { "BLENDWEIGHT",  0, DXGI_FORMAT_R32G32B32A32_FLOAT,   3,	16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
             };
 
             // 创建 graphics pipeline state object (PSO)对象
@@ -702,7 +723,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stPSODesc.BlendState.IndependentBlendEnable = FALSE;
             stPSODesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-            stPSODesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+            stPSODesc.DSVFormat = emDepthStencilFormat;
             stPSODesc.DepthStencilState.DepthEnable = TRUE;
             stPSODesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;//启用深度缓存写入功能
             stPSODesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;     //深度测试函数（该值为普通的深度测试）
@@ -726,6 +747,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
         }
 
         // 10、创建 SRV CBV Sample堆
+        if( TRUE )
         {
             //将纹理视图描述符和CBV描述符放在一个描述符堆上
             D3D12_DESCRIPTOR_HEAP_DESC stSRVHeapDesc = {};
@@ -750,54 +772,42 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         // 11、创建D3D12的模型资源，并复制数据
         {
+            size_t szAlign = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
             // 计算所有的缓冲大小
-            size_t szPositions = g_stMeshData.m_arPositions.GetCount() * sizeof( g_stMeshData.m_arPositions[0] );
-            size_t szNormals = g_stMeshData.m_arNormals.GetCount() * sizeof( g_stMeshData.m_arNormals[0] );
-            size_t szTexCoords = g_stMeshData.m_arTexCoords.GetCount() * sizeof( g_stMeshData.m_arTexCoords[0] );
+            size_t szPositions   = g_stMeshData.m_arPositions.GetCount() * sizeof( g_stMeshData.m_arPositions[0] );
+            size_t szNormals     = g_stMeshData.m_arNormals.GetCount() * sizeof( g_stMeshData.m_arNormals[0] );
+            size_t szTexCoords   = g_stMeshData.m_arTexCoords.GetCount() * sizeof( g_stMeshData.m_arTexCoords[0] );
             size_t szBoneIndices = g_stMeshData.m_arBoneIndices.GetCount() * sizeof( g_stMeshData.m_arBoneIndices[0] );
-            size_t szIndices = g_stMeshData.m_arIndices.GetCount() * sizeof( g_stMeshData.m_arIndices[0] );
-            // 需要的缓冲大小+64k-1 使得刚好是64k边界大小时，可以多分配64k出来，防止CreatePlacedResource报错
-            size_t szVBBuffer = szPositions + szNormals + szTexCoords + szBoneIndices + D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT - 1;
-            // 注意对齐边界必须是4的倍数，比5大4的倍数是8
-            size_t szAlign = 4 * D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+            size_t szIndices     = g_stMeshData.m_arIndices.GetCount() * sizeof( g_stMeshData.m_arIndices[0] );
 
-            // 创建上传堆
+            // 需要的缓冲大小+64k-1 使得刚好是64k边界大小时，可以多分配64k出来，防止CreatePlacedResource报错
+            size_t szVBBuffer = GRS_UPPER( szPositions, szAlign ) 
+                + GRS_UPPER( szNormals, szAlign )
+                + GRS_UPPER( szTexCoords, szAlign )
+                + GRS_UPPER( szBoneIndices, szAlign )
+                + szAlign - 1;             
+           
             D3D12_HEAP_DESC stUploadHeapDesc = {  };
+            // 上传堆类型就是普通的缓冲，可以摆放任意数据
+            stUploadHeapDesc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
             // 实际数据大小的5*64K边界对齐大小，因为有5个Buffer
             stUploadHeapDesc.SizeInBytes = GRS_UPPER( szVBBuffer, szAlign );
             // 注意上传堆肯定是Buffer类型，可以不指定对齐方式，其默认是64k边界对齐
             stUploadHeapDesc.Alignment = 0;
-            stUploadHeapDesc.Properties.Type = D3D12_HEAP_TYPE_UPLOAD;		//上传堆类型
-            stUploadHeapDesc.Properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-            stUploadHeapDesc.Properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-            // 上传堆就是缓冲，可以摆放任意数据
-            stUploadHeapDesc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
-
+            stUploadHeapDesc.Properties = stUploadHeapProps;
+ 
+            // 创建顶点数据的上传堆
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateHeap( &stUploadHeapDesc, IID_PPV_ARGS( &pIUploadHeapModel ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIUploadHeapModel );
 
-
             size_t szOffset = 0;
             BYTE* pData = nullptr;
-            D3D12_RESOURCE_DESC stUploadBufferDesc = {};
-
-            stUploadBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-            stUploadBufferDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-            stUploadBufferDesc.Width = GRS_UPPER( szPositions, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
-            stUploadBufferDesc.Height = 1;
-            stUploadBufferDesc.DepthOrArraySize = 1;
-            stUploadBufferDesc.MipLevels = 1;
-            stUploadBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-            stUploadBufferDesc.SampleDesc.Count = 1;
-            stUploadBufferDesc.SampleDesc.Quality = 0;
-            stUploadBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-            stUploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
             // Positions Upload Buffer
+            stBufferResSesc.Width = GRS_UPPER( szPositions, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIUploadHeapModel.Get()
                 , szOffset
-                , &stUploadBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_GENERIC_READ
                 , nullptr
                 , IID_PPV_ARGS( &pIVBPositionsUp ) ) );
@@ -812,13 +822,13 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pData = nullptr;
 
             // Normals Upload Buffer
-            szOffset += stUploadBufferDesc.Width;
-            stUploadBufferDesc.Width = GRS_UPPER( szNormals, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szNormals, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIUploadHeapModel.Get()
                 , szOffset
-                , &stUploadBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_GENERIC_READ
                 , nullptr
                 , IID_PPV_ARGS( &pIVBNormalsUp ) ) );
@@ -833,13 +843,13 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pData = nullptr;
 
             // TexCoords Upload Buffer
-            szOffset += stUploadBufferDesc.Width;
-            stUploadBufferDesc.Width = GRS_UPPER( szTexCoords, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szTexCoords, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIUploadHeapModel.Get()
                 , szOffset
-                , &stUploadBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_GENERIC_READ
                 , nullptr
                 , IID_PPV_ARGS( &pIVBTexCoordsUp ) ) );
@@ -854,13 +864,13 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pData = nullptr;
 
             // Bone Indices Upload Buffer
-            szOffset += stUploadBufferDesc.Width;
-            stUploadBufferDesc.Width = GRS_UPPER( szBoneIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szBoneIndices, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIUploadHeapModel.Get()
                 , szOffset
-                , &stUploadBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_GENERIC_READ
                 , nullptr
                 , IID_PPV_ARGS( &pIVBBoneIndicesUp ) ) );
@@ -874,52 +884,26 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pIVBBoneIndicesUp->Unmap( 0, nullptr );
             pData = nullptr;
 
-
             // 创建默认堆（显存中的堆）
             D3D12_HEAP_DESC stDefaultHeapDesc = {};
             // 大小跟上传堆一样
-            stDefaultHeapDesc.SizeInBytes = GRS_UPPER( szVBBuffer, szAlign );
-            // 指定堆的对齐方式，这里使用了默认的64K边界对齐，因为这里实际放的是顶点数据
-            stDefaultHeapDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-            stDefaultHeapDesc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;		//默认堆类型
-            stDefaultHeapDesc.Properties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-            stDefaultHeapDesc.Properties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-            // 只是用来摆放普通的缓冲
+            stDefaultHeapDesc.SizeInBytes = stUploadHeapDesc.SizeInBytes;
             stDefaultHeapDesc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+            // 指定堆的对齐方式，这里使用了默认的64K边界对齐，因为这里实际放的是顶点数据
+            stDefaultHeapDesc.Alignment = szAlign;
+            stDefaultHeapDesc.Properties = stDefautHeapProps;
 
             // Vertex Data Default Heap
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateHeap( &stDefaultHeapDesc, IID_PPV_ARGS( &pIDefaultHeapModel ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIDefaultHeapModel );
 
-
-            D3D12_RESOURCE_DESC stDefaultBufferDesc = {};
-            szOffset = 0;
-
-            stDefaultBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-            stDefaultBufferDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-            stDefaultBufferDesc.Width = GRS_UPPER( szPositions, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
-            stDefaultBufferDesc.Height = 1;
-            stDefaultBufferDesc.DepthOrArraySize = 1;
-            stDefaultBufferDesc.MipLevels = 1;
-            stDefaultBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-            stDefaultBufferDesc.SampleDesc.Count = 1;
-            stDefaultBufferDesc.SampleDesc.Quality = 0;
-            stDefaultBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-            stDefaultBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-            D3D12_RESOURCE_BARRIER stBufferBarrier = {};
-            stBufferBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            stBufferBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            stBufferBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-            stBufferBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-            stBufferBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
             // Positions Default Buffer
             szOffset = 0;
+            stBufferResSesc.Width = GRS_UPPER( szPositions, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIDefaultHeapModel.Get()
                 , szOffset
-                , &stDefaultBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS( &pIVBPositions ) ) );
@@ -929,17 +913,19 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 第二次Copy！独显的时候：Share Memory -> Video Memory 
             // 这里只是记录个复制命令，之后会在Copy Engine上Excute
             pICopyCMDList->CopyBufferRegion( pIVBPositions.Get(), 0, pIVBPositionsUp.Get(), 0, szPositions );
-            // 然后加入个资源屏障，同步! 并确认复制操作完成
-            stBufferBarrier.Transition.pResource = pIVBPositions.Get();
-            pICopyCMDList->ResourceBarrier( 1, &stBufferBarrier );
+            // 然后加入个资源屏障，同步! 并确认复制操作完成            
+            stResStateTransBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+            stResStateTransBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
+            stResStateTransBarrier.Transition.pResource = pIVBPositions.Get();
+            pICopyCMDList->ResourceBarrier( 1, &stResStateTransBarrier );
 
             // Normals Default Buffer
-            szOffset += stDefaultBufferDesc.Width;
-            stDefaultBufferDesc.Width = GRS_UPPER( szNormals, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szNormals, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIDefaultHeapModel.Get()
                 , szOffset
-                , &stDefaultBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS( &pIVBNormals ) ) );
@@ -950,16 +936,16 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 这里只是记录个复制命令，之后会在Copy Engine上Excute
             pICopyCMDList->CopyBufferRegion( pIVBNormals.Get(), 0, pIVBNormalsUp.Get(), 0, szNormals );
             // 然后加入个资源屏障，同步! 并确认复制操作完成
-            stBufferBarrier.Transition.pResource = pIVBNormals.Get();
-            pICopyCMDList->ResourceBarrier( 1, &stBufferBarrier );
+            stResStateTransBarrier.Transition.pResource = pIVBNormals.Get();
+            pICopyCMDList->ResourceBarrier( 1, &stResStateTransBarrier );
 
             // TexCoords Default Buffer
-            szOffset += stDefaultBufferDesc.Width;
-            stDefaultBufferDesc.Width = GRS_UPPER( szTexCoords, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szTexCoords, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIDefaultHeapModel.Get()
                 , szOffset
-                , &stDefaultBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS( &pIVBTexCoords ) ) );
@@ -970,16 +956,16 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 这里只是记录个复制命令，之后会在Copy Engine上Excute
             pICopyCMDList->CopyBufferRegion( pIVBTexCoords.Get(), 0, pIVBTexCoordsUp.Get(), 0, szTexCoords );
             // 然后加入个资源屏障，同步! 并确认复制操作完成
-            stBufferBarrier.Transition.pResource = pIVBTexCoords.Get();
-            pICopyCMDList->ResourceBarrier( 1, &stBufferBarrier );
+            stResStateTransBarrier.Transition.pResource = pIVBTexCoords.Get();
+            pICopyCMDList->ResourceBarrier( 1, &stResStateTransBarrier );
 
             // Bone Indices Default Buffer
-            szOffset += stDefaultBufferDesc.Width;
-            stDefaultBufferDesc.Width = GRS_UPPER( szBoneIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            szOffset += stBufferResSesc.Width;
+            stBufferResSesc.Width = GRS_UPPER( szBoneIndices, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIDefaultHeapModel.Get()
                 , szOffset
-                , &stDefaultBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS( &pIVBBoneIndices ) ) );
@@ -990,8 +976,9 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 这里只是记录个复制命令，之后会在Copy Engine上Excute
             pICopyCMDList->CopyBufferRegion( pIVBBoneIndices.Get(), 0, pIVBBoneIndicesUp.Get(), 0, szBoneIndices );
             // 然后加入个资源屏障，同步! 并确认复制操作完成
-            stBufferBarrier.Transition.pResource = pIVBBoneIndices.Get();
-            pICopyCMDList->ResourceBarrier( 1, &stBufferBarrier );
+            stResStateTransBarrier.Transition.pResource = pIVBBoneIndices.Get();
+            pICopyCMDList->ResourceBarrier( 1, &stResStateTransBarrier );
+
 
             // Positions Buffer View
             staVBV[0].BufferLocation = pIVBPositions->GetGPUVirtualAddress();
@@ -1015,17 +1002,17 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             // Indices Upload Buffer
             // Indices 上传堆
-            stUploadHeapDesc.SizeInBytes = GRS_UPPER( szIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stUploadHeapDesc.SizeInBytes = GRS_UPPER( szIndices, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateHeap( &stUploadHeapDesc, IID_PPV_ARGS( &pIUploadHeapIndices ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIUploadHeapIndices );
 
-            stUploadBufferDesc.Width = GRS_UPPER( szIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stBufferResSesc.Width = GRS_UPPER( szIndices, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIUploadHeapIndices.Get()
                 , 0
-                , &stUploadBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_GENERIC_READ
                 , nullptr
                 , IID_PPV_ARGS( &pIIBIndicesUp ) ) );
@@ -1039,19 +1026,18 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pIIBIndicesUp->Unmap( 0, nullptr );
             pData = nullptr;
 
-
             // Indices Default Buffer
             // Indices Data Default Heap
-            stDefaultHeapDesc.SizeInBytes = GRS_UPPER( szIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stDefaultHeapDesc.SizeInBytes = GRS_UPPER( szIndices, szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateHeap( &stDefaultHeapDesc, IID_PPV_ARGS( &pIDefaultHeapIndices ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIDefaultHeapIndices );
 
-            stDefaultBufferDesc.Width = GRS_UPPER( szIndices, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stBufferResSesc.Width = GRS_UPPER( szIndices, szAlign );
             GRS_THROW_IF_FAILED( pID3D12Device4->CreatePlacedResource(
                 pIDefaultHeapIndices.Get()
                 , 0
-                , &stDefaultBufferDesc
+                , &stBufferResSesc
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS( &pIIBIndices ) ) );
@@ -1062,15 +1048,13 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 这里只是记录个复制命令，之后会在Copy Engine上Excute
             pICopyCMDList->CopyBufferRegion( pIIBIndices.Get(), 0, pIIBIndicesUp.Get(), 0, szIndices );
             // 然后加入个资源屏障，同步! 并确认复制操作完成
-            stBufferBarrier.Transition.pResource = pIIBIndices.Get();
-            pICopyCMDList->ResourceBarrier( 1, &stBufferBarrier );
-
+            stResStateTransBarrier.Transition.pResource = pIIBIndices.Get();
+            pICopyCMDList->ResourceBarrier( 1, &stResStateTransBarrier );
             // Indices Buffer View
             stIBV.BufferLocation = pIIBIndices->GetGPUVirtualAddress();
             stIBV.SizeInBytes = (UINT) szIndices;
             // 32bit ? 16bit Index
             stIBV.Format = ( sizeof( g_stMeshData.m_arIndices[0] ) > 2 ) ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
-
 
             // Const Buffers
             D3D12_HEAP_PROPERTIES stUploadHeapProp = {  };
@@ -1084,8 +1068,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             D3D12_RESOURCE_DESC stConstBufferDesc = {};
 
             stConstBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-            stConstBufferDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-            stConstBufferDesc.Width = GRS_UPPER( sizeof( ST_GRS_CB_MVP ), D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stConstBufferDesc.Alignment = szAlign;
+            stConstBufferDesc.Width = GRS_UPPER( sizeof( ST_GRS_CB_MVP ), szAlign );
             stConstBufferDesc.Height = 1;
             stConstBufferDesc.DepthOrArraySize = 1;
             stConstBufferDesc.MipLevels = 1;
@@ -1109,7 +1093,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             GRS_THROW_IF_FAILED( pICBMVP->Map( 0, nullptr, reinterpret_cast<void**>( &pstCBMVP ) ) );
 
             // Bones Const Buffer
-            stConstBufferDesc.Width = GRS_UPPER( sizeof( ST_GRS_CB_BONES ), D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT );
+            stConstBufferDesc.Width = GRS_UPPER( sizeof( ST_GRS_CB_BONES ), szAlign );
 
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommittedResource(
                 &stUploadHeapProp
@@ -1122,8 +1106,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             // Map 之后就不再Unmap了 直接复制数据进去 这样每帧都不用map-copy-unmap浪费时间了
             GRS_THROW_IF_FAILED( pICBBones->Map( 0, nullptr, reinterpret_cast<void**>( &pstBones ) ) );
-
-
 
             // Create Const Buffer View 
             D3D12_CPU_DESCRIPTOR_HANDLE stCBVHandle = { pICBVSRVHeap->GetCPUDescriptorHandleForHeapStart() };
@@ -1148,17 +1130,16 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         // 12、加载纹理
         {
-            // 从模型文件所在路径计算纹理文件
+            // 从模型文件所在路径计算纹理文件路径
             WCHAR pszModelPath[MAX_PATH] = {};
             StringCchCopyW( pszModelPath, MAX_PATH, A2W( g_stMeshData.m_strFileName ) );
 
             WCHAR* lastSlash = _tcsrchr( pszModelPath, _T( '\\' ) );
             if ( lastSlash )
-            {//删除Exe文件名
+            {// 删除模型文件名
                 *( lastSlash ) = _T( '\0' );
             }
 
-            //使用WIC类厂对象接口加载纹理图片，并得到一个WIC解码器对象接口，图片信息就在这个接口代表的对象中了
             WCHAR pszTexcuteFileName[MAX_PATH] = {};
             ID3D12Resource* pITex = nullptr;
             ID3D12Resource* pITexUp = nullptr;
@@ -1168,7 +1149,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
             stSRVDesc.Texture2D.MipLevels = 1;
 
-            D3D12_CPU_DESCRIPTOR_HANDLE stSRVHandle = { pICBVSRVHeap->GetCPUDescriptorHandleForHeapStart() };
+            D3D12_CPU_DESCRIPTOR_HANDLE stSRVHandle = pICBVSRVHeap->GetCPUDescriptorHandleForHeapStart() ;
             // 堆上第三个开始是纹理的SRV
             stSRVHandle.ptr += (size_t) 2 * nCBVSRVDescriptorSize;
 
@@ -1243,7 +1224,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 
             pID3D12Device4->CreateSampler( &stSamplerDesc, hSamplerHeap );
-
         }
 
         // 13、上传
@@ -1268,7 +1248,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stBeginResBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
             stBeginResBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
             stBeginResBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
 
             stEneResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             stEneResBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -1518,19 +1497,19 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         if ( VK_TAB == n16KeyCode )
         {// 按Tab键切换选择模型文件
 
-            OPENFILENAMEA ofn = {};
-            ofn.lStructSize = sizeof( ofn );
-            ofn.hwndOwner = hWnd;
-            ofn.lpstrFilter = "x 文件\0*.x;*.X\0OBJ文件\0*.obj\0FBX文件\0*.fbx\0所有文件\0*.*\0";
-            ofn.lpstrFile = g_pszModelFile;
-            ofn.nMaxFile = MAX_PATH;
-            ofn.lpstrTitle = "请选择一个要显示的3D模型文件...";
-            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            //OPENFILENAMEA ofn = {};
+            //ofn.lStructSize = sizeof( ofn );
+            //ofn.hwndOwner = hWnd;
+            //ofn.lpstrFilter = "x 文件\0*.x;*.X\0OBJ文件\0*.obj\0FBX文件\0*.fbx\0所有文件\0*.*\0";
+            //ofn.lpstrFile = g_pszModelFile;
+            //ofn.nMaxFile = MAX_PATH;
+            //ofn.lpstrTitle = "请选择一个要显示的3D模型文件...";
+            //ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
 
-            if ( !GetOpenFileNameA( &ofn ) )
-            {
-                StringCchPrintfA( g_pszModelFile, MAX_PATH, "%sasset\\rgbgame\\hero.x", g_pszAppPathA );
-            }
+            //if ( !GetOpenFileNameA( &ofn ) )
+            //{
+            //    StringCchPrintfA( g_pszModelFile, MAX_PATH, "%sasset\\rgbgame\\hero.x", g_pszAppPathA );
+            //}
         }
 
         if ( VK_SPACE == n16KeyCode )
@@ -1549,7 +1528,9 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
             g_bWireFrame = !g_bWireFrame;
         }
 
-        XMVECTOR vDelta = { 0.0f,0.0f,1.0f,0.0f };
+        float fDelta = 0.2f;
+
+        XMVECTOR vDelta = { 0.0f,0.0f,fDelta,0.0f };
         // Z-轴
         if ( VK_UP == n16KeyCode || 'w' == n16KeyCode || 'W' == n16KeyCode )
         {
@@ -1564,7 +1545,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }
 
         // X-轴
-        vDelta = { 1.0f,0.0f,0.0f,0.0f };
+        vDelta = { fDelta,0.0f,0.0f,0.0f };
         if ( VK_LEFT == n16KeyCode || 'a' == n16KeyCode || 'A' == n16KeyCode )
         {
             g_v4EyePos = XMVectorAdd( g_v4EyePos, vDelta );
@@ -1578,7 +1559,7 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }
 
         // Y-轴
-        vDelta = { 0.0f,1.0f,0.0f,0.0f };
+        vDelta = { 0.0f,fDelta,0.0f,0.0f };
         if ( VK_PRIOR == n16KeyCode || 'r' == n16KeyCode || 'R' == n16KeyCode )
         {
             g_v4EyePos = XMVectorAdd( g_v4EyePos, vDelta );
@@ -1592,15 +1573,16 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
         }
 
         // 缩放
+        fDelta = 0.2f;
         if ( VK_ADD == n16KeyCode || VK_OEM_PLUS == n16KeyCode )
         {
-            g_fScaling += 1.0f;
+            g_fScaling += fDelta;
         }
 
         if ( VK_SUBTRACT == n16KeyCode || VK_OEM_MINUS == n16KeyCode )
         {
-            g_fScaling -= 1.0f;
-            if ( g_fScaling <= 1.0f )
+            g_fScaling -= fDelta;
+            if ( g_fScaling <= 0.0f )
             {
                 g_fScaling = 1.0f;
             }
