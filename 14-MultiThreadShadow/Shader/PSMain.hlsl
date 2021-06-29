@@ -53,6 +53,7 @@ float3 CalcPerPixelNormal(float2 vTexcoord, float3 vVertNormal, float3 vVertTang
     float3 vBumpNormal = (float3)g_t2dNormalMap.Sample(g_SampleWrap, vTexcoord);
     // ·ûºÅ»¯»¹Ô­
     vBumpNormal = 2.0f * vBumpNormal - 1.0f;
+    vBumpNormal.z = -vBumpNormal.z;
 
     return mul(vBumpNormal, mTangentSpaceToWorldSpace);
 }
@@ -157,6 +158,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float4 fPixelColor = diffuseColor;
     float fDepthValue = g_t2dShadowMap.Sample(g_SampleClamp, v2LightCoord);
     vLightSpacePos.z -= 0.05f;
+
     if ( vLightSpacePos.z < fDepthValue )
     {
         fPixelColor += v4AmbientColor;
@@ -171,7 +173,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     {
         fPixelColor -= v4AmbientColor;
     }
-     return fPixelColor;
+    return fPixelColor;
     //return float4(vLightSpacePos.z, vLightSpacePos.z, vLightSpacePos.z, 1.0f);
 
     //return vLightSpacePos;

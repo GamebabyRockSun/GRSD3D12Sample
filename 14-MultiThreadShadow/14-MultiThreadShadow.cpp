@@ -269,46 +269,52 @@ struct ST_GRS_THREAD_PARAMS
     ID3D12Resource* m_pICBLights;
 };
 
-int g_iWndWidth = 1024;
-int g_iWndHeight = 768;
+// 窗口大小
+int                             g_iWndWidth = 1024;
+int                             g_iWndHeight = 768;
+
+// 阴影用的深度缓冲的分辨率
+int                             g_iDepthWidth = 1024;
+int                             g_iDepthHeight = 1024;
 
 D3D12_VIEWPORT					g_stViewPort = { 0.0f, 0.0f, static_cast<float>( g_iWndWidth ), static_cast<float>( g_iWndHeight ) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-D3D12_RECT							g_stScissorRect = { 0, 0, static_cast<LONG>( g_iWndWidth ), static_cast<LONG>( g_iWndHeight ) };
+D3D12_VIEWPORT					g_stDepthViewPort = { 0.0f, 0.0f, static_cast<float>( g_iWndWidth ), static_cast<float>( g_iWndHeight ) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+D3D12_RECT						g_stScissorRect = { 0, 0, static_cast<LONG>( g_iWndWidth ), static_cast<LONG>( g_iWndHeight ) };
 
 //初始的默认摄像机的位置
-XMFLOAT3								g_f3EyePos = XMFLOAT3( 0.0f, 5.0f, -10.0f );  //眼睛位置
-XMFLOAT3								g_f3LockAt = XMFLOAT3( 0.0f, 0.0f, 0.0f );    //眼睛所盯的位置
-XMFLOAT3								g_f3HeapUp = XMFLOAT3( 0.0f, 1.0f, 0.0f );    //头部正上方位置
+XMFLOAT3						g_f3EyePos = XMFLOAT3( 0.0f, 5.0f, -10.0f );  //眼睛位置
+XMFLOAT3						g_f3HeapUp = XMFLOAT3( 0.0f, 1.0f, 0.0f );    //头部正上方位置
+XMFLOAT3						g_f3LockAt = XMFLOAT3( 0.0f, 0.0f, 0.0f );    //眼睛所盯的位置
 
-float											g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
-float											g_fPitch = 0.0f;			// 绕XZ平面的旋转量
+float							g_fYaw = 0.0f;			// 绕正Z轴的旋转量.
+float							g_fPitch = 0.0f;			// 绕XZ平面的旋转量
 
-double										g_fPalstance = 3.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
+double							g_fPalstance = 3.0f * XM_PI / 180.0f;	//物体旋转的角速度，单位：弧度/秒
 
-XMFLOAT4X4							g_mxWorld = {}; //World Matrix
-XMFLOAT4X4							g_mxView = {}; //World Matrix
-XMFLOAT4X4							g_mxProjection = {}; //World Matrix
+XMFLOAT4X4						g_mxWorld = {}; //World Matrix
+XMFLOAT4X4						g_mxView = {}; //World Matrix
+XMFLOAT4X4						g_mxProjection = {}; //World Matrix
 
 // 全局线程参数
-const UINT								g_nMaxThread = 3;
-const UINT								g_nThdSphere = 0;
-const UINT								g_nThdCube = 1;
-const UINT								g_nThdPlane = 2;
-ST_GRS_THREAD_PARAMS		g_stThreadParams[g_nMaxThread] = {};
+const UINT						g_nMaxThread = 3;
+const UINT						g_nThdSphere = 0;
+const UINT						g_nThdCube = 1;
+const UINT						g_nThdPlane = 2;
+ST_GRS_THREAD_PARAMS		    g_stThreadParams[g_nMaxThread] = {};
 
-ST_GRS_LIGHTBUFFER* g_pstLights = nullptr;
+ST_GRS_LIGHTBUFFER*             g_pstLights = nullptr;
 
-const UINT								g_nFrameBackBufCount = 3u;
-UINT										g_nRTVDescriptorSize = 0U;
-UINT										g_nSRVDescriptorSize = 0U;
-UINT                                        g_nDSVDescriptorSize = 0U;
+const UINT						g_nFrameBackBufCount = 3u;
+UINT							g_nRTVDescriptorSize = 0U;
+UINT							g_nSRVDescriptorSize = 0U;
+UINT                            g_nDSVDescriptorSize = 0U;
 
-ComPtr<ID3D12Resource>				g_pIARenderTargets[g_nFrameBackBufCount];
+ComPtr<ID3D12Resource>			g_pIARenderTargets[g_nFrameBackBufCount];
 
-ComPtr<ID3D12DescriptorHeap>		g_pIRTVHeap;
-ComPtr<ID3D12DescriptorHeap>		g_pIDSVHeap;				//深度缓冲描述符堆
+ComPtr<ID3D12DescriptorHeap>	g_pIRTVHeap;
+ComPtr<ID3D12DescriptorHeap>	g_pIDSVHeap;				//深度缓冲描述符堆
 
-TCHAR								g_pszAppPath[MAX_PATH] = {};
+TCHAR							g_pszAppPath[MAX_PATH] = {};
 
 typedef CAtlArray<ST_GRS_VERTEX> CGRSMeshVertex;
 typedef CAtlArray<UINT32>		 CGRSMeshIndex;
@@ -324,11 +330,10 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 {
     ::CoInitialize( nullptr );  //for WIC & COM
 
-    HWND												hWnd = nullptr;
-    MSG													msg = {};
+    HWND								hWnd = nullptr;
+    MSG									msg = {};
 
-
-    const float										faClearColor[] = { 0.2f, 0.5f, 1.0f, 1.0f };
+    const float							faClearColor[] = { 0.2f, 0.5f, 1.0f, 1.0f };
 
     ComPtr<IDXGIFactory5>				pIDXGIFactory5;
     ComPtr<IDXGIFactory6>				pIDXGIFactory6;
@@ -531,16 +536,14 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             ::SetWindowText( hWnd, pszWndTitle );
         }
 
-        // 4、创建直接命令队列
+        // 4、创建命令队列及命令列表
         {
             D3D12_COMMAND_QUEUE_DESC stQueueDesc = {};
             stQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommandQueue( &stQueueDesc, IID_PPV_ARGS( &pIMainCmdQueue ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIMainCmdQueue );
-        }
 
-        // 5、创建直接命令列表
-        {
+            // 创建直接命令列表
             // 预处理命令列表
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommandAllocator( D3D12_COMMAND_LIST_TYPE_DIRECT
                 , IID_PPV_ARGS( &pICmdAllocPre ) ) );
@@ -566,7 +569,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pICmdListPost );
         }
 
-        // 6、创建围栏对象
+        // 5、创建围栏对象
         {
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateFence( 0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS( &pIFence ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIFence );
@@ -579,7 +582,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             }
         }
 
-        // 7、创建交换链
+        // 6、创建交换链
         {
             DXGI_SWAP_CHAIN_DESC1 stSwapChainDesc = {};
             stSwapChainDesc.BufferCount = g_nFrameBackBufCount;
@@ -634,19 +637,20 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             GRS_THROW_IF_FAILED( pIDXGIFactory5->MakeWindowAssociation( hWnd, DXGI_MWA_NO_ALT_ENTER ) );
         }
 
-        // 8、创建深度缓冲及深度缓冲描述符堆
+        // 7、创建深度缓冲及深度缓冲描述符堆
         {
             D3D12_CLEAR_VALUE stDepthOptimizedClearValue = {};
             stDepthOptimizedClearValue.Format = emDepthShadowFormat;
             stDepthOptimizedClearValue.DepthStencil.Depth = 1.0f;
             stDepthOptimizedClearValue.DepthStencil.Stencil = 0;
-
+            
+                
             D3D12_RESOURCE_DESC stDepthShadowResDesc = {};
             stDepthShadowResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
             stDepthShadowResDesc.Alignment = 0;
             stDepthShadowResDesc.Format = emDepthShadowFormat;
-            stDepthShadowResDesc.Width = g_iWndWidth;
-            stDepthShadowResDesc.Height = g_iWndHeight;
+            stDepthShadowResDesc.Width = g_iDepthWidth;
+            stDepthShadowResDesc.Height = g_iDepthHeight;
             stDepthShadowResDesc.DepthOrArraySize = 1;
             stDepthShadowResDesc.MipLevels = 0;
             stDepthShadowResDesc.SampleDesc.Count = 1;
@@ -716,7 +720,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         }
 
-        // 9、创建根签名
+        // 8、创建根签名
         {//这个例子中，所有物体使用相同的根签名，因为渲染过程中需要的参数是一样的
             // 检测是否支持V1.1版本的根签名
             stFeatureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
@@ -821,7 +825,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pIRSShadowPass );
         }
 
-        // 10、编译Shader创建渲染管线状态对象
+        // 9、编译Shader创建渲染管线状态对象
         if( TRUE )
         {
             UINT nShaderCompileFlags = 0;
@@ -921,7 +925,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         }
 
-        // 11、创建渲染UI矩形（渲染阴影视图）用的管线的根签名、管线状态对象、矩形框VB、CB、采样器（堆）、SRV Heap、CBV、SRV
+        // 10、创建渲染UI矩形（渲染阴影视图）用的管线的根签名、管线状态对象、矩形框VB、CB、采样器（堆）、SRV Heap、CBV、SRV
         {
             //--------------------------------------------------------------------------------------------------------------
             //创建渲染矩形的根签名对象
@@ -1134,7 +1138,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             pID3D12Device4->CreateSampler( &stSamplerDesc, pISampleHeapQuad->GetCPUDescriptorHandleForHeapStart() );
 
             //--------------------------------------------------------------------------------------------------------------
-
             // 计算正交投影矩阵 Orthographic
             // 基于左上角是坐标原点 X正方向向右 Y正方向向下 与窗口坐标系相同
             // 这里的算法来自于古老的HGE引擎核心
@@ -1197,57 +1200,56 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             //--------------------------------------------------------------------------------------------------------------
         }
 
-        // 12、创建Sample
+        // 11、创建Sample
+        if ( TRUE )
         {
-            {
-                D3D12_DESCRIPTOR_HEAP_DESC stSamplerHeapDesc = {};
-                stSamplerHeapDesc.NumDescriptors = 2;  // 1 Wrap Sample + 1 Clamp Sample
-                stSamplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-                stSamplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            D3D12_DESCRIPTOR_HEAP_DESC stSamplerHeapDesc = {};
+            stSamplerHeapDesc.NumDescriptors = 2;  // 1 Wrap Sample + 1 Clamp Sample
+            stSamplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+            stSamplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-                GRS_THROW_IF_FAILED( pID3D12Device4->CreateDescriptorHeap( &stSamplerHeapDesc, IID_PPV_ARGS( &pISampleHeap ) ) );
-                GRS_SET_D3D12_DEBUGNAME_COMPTR( pISampleHeap );
+            GRS_THROW_IF_FAILED( pID3D12Device4->CreateDescriptorHeap( &stSamplerHeapDesc, IID_PPV_ARGS( &pISampleHeap ) ) );
+            GRS_SET_D3D12_DEBUGNAME_COMPTR( pISampleHeap );
 
-                const UINT nSamplerDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER );
-                D3D12_CPU_DESCRIPTOR_HANDLE stSamplerHandle = pISampleHeap->GetCPUDescriptorHandleForHeapStart() ;
+            const UINT nSamplerDescriptorSize = pID3D12Device4->GetDescriptorHandleIncrementSize( D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER );
+            D3D12_CPU_DESCRIPTOR_HANDLE stSamplerHandle = pISampleHeap->GetCPUDescriptorHandleForHeapStart();
 
-                D3D12_SAMPLER_DESC stWrapSamplerDesc = {};
-                stWrapSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-                stWrapSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-                stWrapSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-                stWrapSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-                stWrapSamplerDesc.MinLOD = 0;
-                stWrapSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
-                stWrapSamplerDesc.MipLODBias = 0.0f;
-                stWrapSamplerDesc.MaxAnisotropy = 1;
-                stWrapSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-                stWrapSamplerDesc.BorderColor[0]
-                    = stWrapSamplerDesc.BorderColor[1]
-                    = stWrapSamplerDesc.BorderColor[2]
-                    = stWrapSamplerDesc.BorderColor[3] = 0;
-                pID3D12Device4->CreateSampler( &stWrapSamplerDesc, stSamplerHandle );
+            D3D12_SAMPLER_DESC stWrapSamplerDesc = {};
+            stWrapSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            stWrapSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            stWrapSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            stWrapSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            stWrapSamplerDesc.MinLOD = 0;
+            stWrapSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+            stWrapSamplerDesc.MipLODBias = 0.0f;
+            stWrapSamplerDesc.MaxAnisotropy = 1;
+            stWrapSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+            stWrapSamplerDesc.BorderColor[0]
+                = stWrapSamplerDesc.BorderColor[1]
+                = stWrapSamplerDesc.BorderColor[2]
+                = stWrapSamplerDesc.BorderColor[3] = 0;
+            pID3D12Device4->CreateSampler( &stWrapSamplerDesc, stSamplerHandle );
 
-                stSamplerHandle.ptr += nSamplerDescriptorSize ;
+            stSamplerHandle.ptr += nSamplerDescriptorSize;
 
-                D3D12_SAMPLER_DESC stClampSamplerDesc = {};
-                stClampSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-                stClampSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                stClampSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                stClampSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-                stClampSamplerDesc.MipLODBias = 0.0f;
-                stClampSamplerDesc.MaxAnisotropy = 1;
-                stClampSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-                stClampSamplerDesc.BorderColor[0]
-                    = stClampSamplerDesc.BorderColor[1]
-                    = stClampSamplerDesc.BorderColor[2]
-                    = stClampSamplerDesc.BorderColor[3] = 0;
-                stClampSamplerDesc.MinLOD = 0;
-                stClampSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
-                pID3D12Device4->CreateSampler( &stClampSamplerDesc, stSamplerHandle );
-            }
+            D3D12_SAMPLER_DESC stClampSamplerDesc = {};
+            stClampSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+            stClampSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            stClampSamplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            stClampSamplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            stClampSamplerDesc.MipLODBias = 0.0f;
+            stClampSamplerDesc.MaxAnisotropy = 1;
+            stClampSamplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+            stClampSamplerDesc.BorderColor[0]
+                = stClampSamplerDesc.BorderColor[1]
+                = stClampSamplerDesc.BorderColor[2]
+                = stClampSamplerDesc.BorderColor[3] = 0;
+            stClampSamplerDesc.MinLOD = 0;
+            stClampSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+            pID3D12Device4->CreateSampler( &stClampSamplerDesc, stSamplerHandle );
         }
 
-        // 13、创建全局灯光
+        // 12、创建全局灯光
         {
             // 计算透视矩阵（本例中光源 摄像机都使用同一个透视矩阵）
             XMStoreFloat4x4( &g_mxProjection, XMMatrixPerspectiveFovLH( XM_PIDIV4, (FLOAT) g_iWndWidth / (FLOAT) g_iWndHeight, fNearPlane, fFarPlane ) );
@@ -1270,8 +1272,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             for ( int i = 0; i < GRS_NUM_LIGHTS; i++ )
             {
-                g_pstLights->m_stLights[i].m_v4Position = { 0.0f, 10.0f, -15.0f, 1.0f };
-                g_pstLights->m_stLights[i].m_v4Direction = { 0.0, -1.0f, 1.0f, 0.0f };
+                g_pstLights->m_stLights[i].m_v4Position = { 0.0f, 5.0f, -10.0f, 1.0f };
+                g_pstLights->m_stLights[i].m_v4Direction = { 0.0, 0.0f, 1.0f, 0.0f };
                 g_pstLights->m_stLights[i].m_v4Falloff = { 80.0f, 1.0f, 0.0f, 1.0f };
                 g_pstLights->m_stLights[i].m_v4Color = { 0.9f, 0.9f, 0.9f, 1.0f };
 
@@ -1283,27 +1285,28 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
                 g_pstLights->m_stLights[i].m_mxProjection = g_mxProjection;
             }
+
             g_pstLights->m_stLights[1].m_v4Color = { 0.0f, 0.0f, 0.0f, 1.0f };
             g_pstLights->m_stLights[2].m_v4Color = { 0.0f, 0.0f, 0.0f, 1.0f };
         }
 
-        // 14、准备参数并启动多个渲染线程
+        // 13、准备参数并启动多个渲染线程
         {
             USES_CONVERSION;
             // 球体个性参数
             StringCchPrintf( g_stThreadParams[g_nThdSphere].m_pszDiffuseFile, MAX_PATH, _T( "%sAssets\\Earth_512.dds" ), g_pszAppPath );
             StringCchPrintf( g_stThreadParams[g_nThdSphere].m_pszNormalFile, MAX_PATH, _T( "%sAssets\\Earth_512_Normal.dds" ), g_pszAppPath );
-            g_stThreadParams[g_nThdSphere].m_v4ModelPos = XMFLOAT4( 2.0f, 2.0f, 0.0f, 1.0f );
+            g_stThreadParams[g_nThdSphere].m_v4ModelPos = XMFLOAT4( 2.0f, 1.0f, 0.0f, 1.0f );
 
             // 立方体个性参数
             StringCchPrintf( g_stThreadParams[g_nThdCube].m_pszDiffuseFile, MAX_PATH, _T( "%sAssets\\Cube.dds" ), g_pszAppPath );
             StringCchPrintf( g_stThreadParams[g_nThdCube].m_pszNormalFile, MAX_PATH, _T( "%sAssets\\Cube_NRM.dds" ), g_pszAppPath );
-            g_stThreadParams[g_nThdCube].m_v4ModelPos = XMFLOAT4( -2.0f, 2.0f, 0.0f, 1.0f );
+            g_stThreadParams[g_nThdCube].m_v4ModelPos = XMFLOAT4( -2.0f, 1.0f, 0.0f, 1.0f );
 
             // 平板个性参数
             StringCchPrintf( g_stThreadParams[g_nThdPlane].m_pszDiffuseFile, MAX_PATH, _T( "%sAssets\\Plane.dds" ), g_pszAppPath );
             StringCchPrintf( g_stThreadParams[g_nThdPlane].m_pszNormalFile, MAX_PATH, _T( "%sAssets\\Plane_NRM.dds" ), g_pszAppPath );
-            g_stThreadParams[g_nThdPlane].m_v4ModelPos = XMFLOAT4( 0.0f, 1.0f, 0.0f, 1.0f );
+            g_stThreadParams[g_nThdPlane].m_v4ModelPos = XMFLOAT4( 0.0f, 0.0f, 0.0f, 1.0f );
 
 
             // 物体的共性参数，也就是各线程的共性参数
@@ -1407,8 +1410,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             {
                 switch ( nStates )
                 {
-                case EM_GRS_RS_GPUCOPY://状态0，表示等到各子线程加载资源完毕，此时执行一次命令列表完成各子线程要求的资源上传的第二个Copy命令
-                {
+                case EM_GRS_RS_GPUCOPY:
+                {//状态EM_GRS_RS_GPUCOPY：执行资源上传的第二个Copy命令
                     arCmdList.RemoveAll();
                     //执行命令列表
                     arCmdList.Add( g_stThreadParams[g_nThdSphere].m_pICmdList );
@@ -1430,8 +1433,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                     arHWaited.Add( hEventFence );
                 }
                 break;
-                case EM_GRS_RS_STARTSHADOW:// 状态1 等到命令队列执行结束（也即CPU等到GPU执行结束），开始新一轮渲染
-                {
+                case EM_GRS_RS_STARTSHADOW:
+                {// 状态EM_GRS_RS_STARTSHADOW：渲染阴影
                     // 注意只在状态1 调用OnUpdate这个过程，只有阴影渲染，正常渲染结束了才再次更新，两遍渲染才是一个完整的周期
                     //OnUpdate()
                     {
@@ -1456,16 +1459,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                         // 变换光源
                         for ( int i = 0; i < GRS_NUM_LIGHTS; i++ )
                         {
-                            float fRotLight = (float) ( g_fPalstance * pow( -1.0, i ) );
-
-                            //XMStoreFloat4(&g_pstLights->m_stLights[i].m_v4Position
-                            //	, XMVector4Transform(XMLoadFloat4(&g_pstLights->m_stLights[i].m_v4Position)
-                            //		, XMMatrixRotationY(fRotLight)));
-
                             XMVECTOR eye = XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Position );
-                            XMVECTOR at = XMVectorSet( 0.0f, 0.0f, 0.0f, 0.0f );
-                            XMStoreFloat4( &g_pstLights->m_stLights[i].m_v4Direction
-                                , XMVector3Normalize( XMVectorSubtract( at, eye ) ) );
+                            XMVECTOR at = { 0.0f,0.0f,0.0f,0.0f };
                             XMVECTOR up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
 
                             XMStoreFloat4x4( &g_pstLights->m_stLights[i].m_mxView
@@ -1498,8 +1493,9 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                         D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = g_pIDSVHeap->GetCPUDescriptorHandleForHeapStart() ;
                         //设置渲染目标（注意阴影Pass不要RTV）
                         pICmdListPre->OMSetRenderTargets( 0, nullptr, FALSE, &stDSVHandle );
-
-                        pICmdListPre->RSSetViewports( 1, &g_stViewPort );
+                        // 阴影贴图与窗口分辨率不同，需要改变视口（viewport）的参数以适应阴影贴图的尺寸。
+                        // 如果不更新视口，最后的深度贴图要么太小要么就不完整。
+                        pICmdListPre->RSSetViewports( 1, &g_stDepthViewPort );
                         pICmdListPre->RSSetScissorRects( 1, &g_stScissorRect );
 
                         pICmdListPre->ClearDepthStencilView( stDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
@@ -1531,8 +1527,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                     }
                 }
                 break;
-                case EM_GRS_RS_STARTRENDER:// 状态2 阴影渲染结束 开始正常渲染
-                {
+                case EM_GRS_RS_STARTRENDER:
+                {// 状态EM_GRS_RS_STARTRENDER：阴影渲染结束 开始正常渲染
                     // OnUpdate() 恢复View Projection 矩阵到摄像机空间
                     {
                         //计算 World 矩阵 这里是个旋转矩阵

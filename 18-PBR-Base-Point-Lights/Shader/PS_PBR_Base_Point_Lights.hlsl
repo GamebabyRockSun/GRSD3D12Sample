@@ -112,7 +112,11 @@ float4 PSMain( PSInput stPSInput ) : SV_TARGET
         // 中间向量（入射光与法线的角平分线）
         float3 H = normalize( V + L );
         float distance = length( g_v4LightPos[i].xyz - stPSInput.g_v4PosWorld.xyz );
-        float attenuation = 1.0 / ( distance * distance );
+
+        //float attenuation = 1.0 / ( distance * distance );
+        // 已经Gamma矫正了，就不要二次反比衰减了，单次衰减就可以了
+        float attenuation = 1.0 / distance ;
+        
         float3 radiance = g_v4LightClr[i].xyz * attenuation;
 
         // Cook-Torrance光照模型 BRDF
