@@ -190,7 +190,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 		// 枚举适配器，并选择合适的适配器来创建3D设备对象
 		{
 			DXGI_ADAPTER_DESC1 stAdapterDesc = {};
-			for (UINT adapterIndex = 1; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter1); ++adapterIndex)
+			for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != pIDXGIFactory5->EnumAdapters1(adapterIndex, &pIAdapter1); ++adapterIndex)
 			{
 				pIAdapter1->GetDesc1(&stAdapterDesc);
 

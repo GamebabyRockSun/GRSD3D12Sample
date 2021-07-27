@@ -129,7 +129,6 @@ BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData)
 				stMeshData.m_arBoneIndices[VertexID].AddBoneData(nBoneIndex, Weight);
 			}
 		}
-
 	}
 
 	// 获取材质数量
@@ -338,9 +337,6 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 	MXEqual(mxNodeTransformation, pNode->mTransformation);
 	mxNodeTransformation = XMMatrixTranspose(mxNodeTransformation);
 
-	XMMATRIX mxThisTrans = XMMatrixTranspose(mxNodeTransformation);
-	//mxThisTrans = XMMatrixTranspose(XMMatrixInverse(nullptr,mxNodeTransformation));
-
 	CStringA strNodeName(pNode->mName.data);
 
 	const aiNodeAnim* pNodeAnim = FindNodeAnim(pAnimation, strNodeName);
@@ -363,7 +359,8 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 		XMMATRIX mxTranslationM = XMMatrixTranslationFromVector(vTranslation);
 
 		// 骨骼动画中 最经典的 SQT 组合变换
-		mxNodeTransformation = mxScaling * mxRotationM * mxTranslationM; // TranslationM* RotationM* ScalingM;
+		mxNodeTransformation = mxScaling * mxRotationM * mxTranslationM; 
+		// OpenGL：TranslationM* RotationM* ScalingM;
 	}
 
 	XMMATRIX mxGlobalTransformation = mxNodeTransformation *  mxParentTransform;
@@ -373,7 +370,6 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 	{
 		stMeshData.m_arBoneDatas[nBoneIndex].m_mxFinalTransformation
 			= stMeshData.m_arBoneDatas[nBoneIndex].m_mxBoneOffset
-			/** mxThisTrans*/
 			* mxGlobalTransformation 
 			* stMeshData.m_mxModel;
 	}

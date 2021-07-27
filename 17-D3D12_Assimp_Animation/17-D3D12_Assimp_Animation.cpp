@@ -695,7 +695,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             }
 
             // 定义传入管线的数据结构，这里使用了多Slot方式，注意Slot的用法
-            D3D12_INPUT_ELEMENT_DESC stIALayoutSphere[] =
+            D3D12_INPUT_ELEMENT_DESC stIALayout[] =
             {
                 { "POSITION",	  0, DXGI_FORMAT_R32G32B32A32_FLOAT,   0,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
                 { "NORMAL",		  0, DXGI_FORMAT_R32G32B32A32_FLOAT,   1,	 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -706,7 +706,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             // 创建 graphics pipeline state object (PSO)对象
             D3D12_GRAPHICS_PIPELINE_STATE_DESC stPSODesc = {};
-            stPSODesc.InputLayout = { stIALayoutSphere, _countof( stIALayoutSphere ) };
+            stPSODesc.InputLayout = { stIALayout, _countof( stIALayout ) };
 
             stPSODesc.pRootSignature = pIRootSignature.Get();
 
