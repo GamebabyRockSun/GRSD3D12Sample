@@ -112,3 +112,9 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 2021-7-21
 
 1、将所有之前EnumAdapters1枚举显卡的循环变量改回从0开始，防止好多系统都没法运行示例，大家都不知道怎么回事；
+
+2021-9-11
+
+1、一口气添加4个项目（19-22），前三个是空的框架性项目，主要是方便大家在此基础上编写自己的示例，主要是逐步加入了Resize和Fullscreen的支持，Fullscreen使用传统的Alt+Enter键来切换，当然你可以用别的方法控制，函数就在那里，等你调用；
+
+2、22号项目是基于点光源PBR渲染的延续，使用了非常重要的多实例以及多插槽（Multi-Instance、Multi-Slot）方法。
