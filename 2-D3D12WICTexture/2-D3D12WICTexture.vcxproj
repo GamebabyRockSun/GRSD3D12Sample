@@ -23,7 +23,7 @@
     <ProjectGuid>{446F6F47-76DB-4934-8F47-42F8E2B0656D}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>My2D3D12WICTexture</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>02-D3D12WICTexture</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

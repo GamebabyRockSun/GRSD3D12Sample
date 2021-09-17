@@ -1994,6 +1994,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (VK_TAB == n16KeyCode)
 		{// 按Tab键切换选择另外的GIF来显示
+			// 1、消息循环旁路
+			if ( WAIT_OBJECT_0 != ::WaitForSingleObject(g_hEventFence, INFINITE) )
+			{
+				GRS_THROW_IF_FAILED(HRESULT_FROM_WIN32(GetLastError()));
+			}
 
 			OPENFILENAME ofn = {};
 			ofn.lStructSize = sizeof(ofn);
@@ -2054,7 +2059,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 解决的方法当时Wait一下Fence Event，这里依然使用最懒的方法，就是在上面等个20ms完事
 				// 这个等待不能是INFINITE，如果没有渲染也没有设置这个事件句柄给Fence的话，它永远不会有信号，那样等待就像死锁了一样
 
-				DWORD dwRet = WaitForSingleObject(g_hEventFence, 40);
+				//DWORD dwRet = WaitForSingleObject(g_hEventFence, 40);
 
 				g_pIRWTexture.Reset();
 
@@ -2079,10 +2084,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				g_pID3D12Device4->CreateUnorderedAccessView(g_pIRWTexture.Get(), nullptr, &stUAVDesc, stSRVHandle);
 
 				//这里Set一下，实质上就是消除了刚刚那个Wait的副作用，因为我们主消息循环里也是Wait这个Event Handle来保持循环状态的
-				if (WAIT_OBJECT_0 == dwRet)
-				{
+				//if (WAIT_OBJECT_0 == dwRet)
+				//{
 					SetEvent(g_hEventFence);
-				}
+				//}
 			}
 		}
 

@@ -23,7 +23,7 @@
     <ProjectGuid>{5348E771-E75A-4948-8E40-27BD5E44D208}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>D3D12RenderToTexture</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>09-RenderToTexture</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
