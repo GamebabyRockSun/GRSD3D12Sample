@@ -65,6 +65,8 @@ float Distribution_GGX( float3 N, float3 H, float fRoughness )
 
 float Geometry_Schlick_GGX( float NdotV, float fRoughness )
 {
+    // 直接光照时 k = (fRoughness + 1)^2 / 8;
+    // IBL 时 k = （fRoughness^2)/2;
     float r = ( fRoughness + 1.0 );
     float k = ( r * r ) / 8.0;
 
