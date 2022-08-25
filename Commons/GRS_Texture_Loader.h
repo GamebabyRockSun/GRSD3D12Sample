@@ -45,7 +45,6 @@ __inline BOOL LoadTextureFromMem( ID3D12GraphicsCommandList* pCMDList
         stTextureDesc.SampleDesc.Count = 1;
         stTextureDesc.SampleDesc.Quality = 0;
 
-
         GRS_THROW_IF_FAILED( pID3D12Device->CreateCommittedResource(
             &stTextureHeapProp
             , D3D12_HEAP_FLAG_NONE
@@ -172,7 +171,7 @@ __inline BOOL LoadTextureFromFile(
     BOOL bRet = TRUE;
     try
     {
-        BYTE* pbImageData = nullptr;
+        BYTE*       pbImageData = nullptr;
         size_t		szImageBufferSize = 0;
         DXGI_FORMAT emTextureFormat = DXGI_FORMAT_UNKNOWN;
         UINT 		nTextureW = 0;

@@ -7,9 +7,9 @@ SamplerState g_SampleWrap : register(s0);
 SamplerState g_SampleClamp : register(s1);
 
 #define GRS_NUM_LIGHTS 3
-#define GRS_SHADOW_DEPTH_BIAS 0.0005f
+#define GRS_SHADOW_DEPTH_BIAS 0.05f
 
-struct LightState
+struct ST_LIGHT_STATE
 {
     float4 v4Position;
     float4 v4Direction;
@@ -19,14 +19,14 @@ struct LightState
     float4x4 mxProjection;
 };
 
-cbuffer LightBuffer : register(b1)
+cbuffer CB_LIGHT_DATA : register(b1)
 {
-    float4 v4AmbientColor;
-    LightState stLights[GRS_NUM_LIGHTS];
+    float4 v3AmbientColor;
+    ST_LIGHT_STATE stLights[GRS_NUM_LIGHTS];
     uint bIsSampleShadowMap;
 };
 
-struct PSInput
+struct ST_PS_INPUT
 {
     float4 v4Position       : SV_POSITION;
     float4 v4WorldPosition  : POSITION;
@@ -53,7 +53,7 @@ float3 CalcPerPixelNormal(float2 vTexcoord, float3 vVertNormal, float3 vVertTang
     float3 vBumpNormal = (float3)g_t2dNormalMap.Sample(g_SampleWrap, vTexcoord);
     // 符号化还原
     vBumpNormal = 2.0f * vBumpNormal - 1.0f;
-    vBumpNormal.z = -vBumpNormal.z;
+    //vBumpNormal.z = -vBumpNormal.z;
 
     return mul(vBumpNormal, mTangentSpaceToWorldSpace);
 }
@@ -115,21 +115,22 @@ float4 CalcUnshadowedAmountPCF2x2(int lightIndex, float4 vPosWorld)
     // 2x2 percentage closer filtering.
     float2 vTexelUnits = 1.0f / vShadowMapDims;
     float4 vShadowDepths;
-    vShadowDepths.x = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord);
-    vShadowDepths.y = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + float2(vTexelUnits.x, 0.0f));
-    vShadowDepths.z = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + float2(0.0f, vTexelUnits.y));
-    vShadowDepths.w = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + vTexelUnits);
+    vShadowDepths.x = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord).x;
+    vShadowDepths.y = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + float2(vTexelUnits.x, 0.0f)).x;
+    vShadowDepths.z = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + float2(0.0f, vTexelUnits.y)).x;
+    vShadowDepths.w = g_t2dShadowMap.Sample(g_SampleClamp, vShadowTexCoord + vTexelUnits).x;
 
     // What weighted fraction of the 4 samples are nearer to the light than this pixel?
     float4 vShadowTests = (vShadowDepths >= vLightSpaceDepth) ? 1.0f : 0.0f;
     return dot(vBilinearWeights, vShadowTests);
 }
 
-float4 PSMain(PSInput input) : SV_TARGET
+float4 PSMain(ST_PS_INPUT stPSinput) : SV_TARGET
 {
-    float4 diffuseColor = g_t2dDiffuseMap.Sample(g_SampleWrap, input.v2UV);
-    float3 pixelNormal = CalcPerPixelNormal(input.v2UV, input.v4Normal, input.v4Tangent);
-    float4 totalLight = v4AmbientColor;
+    float4 diffuseColor = g_t2dDiffuseMap.Sample(g_SampleWrap, stPSinput.v2UV);
+
+    float3 pixelNormal = CalcPerPixelNormal(stPSinput.v2UV, stPSinput.v4Normal.xyz, stPSinput.v4Tangent.xyz);
+    float4 totalLight = v3AmbientColor;
 
     for (int i = 0; i < GRS_NUM_LIGHTS; i++)
     {
@@ -137,52 +138,105 @@ float4 PSMain(PSInput input) : SV_TARGET
             , stLights[i].v4Direction.xyz
             , stLights[i].v4Color
             , stLights[i].v4Falloff
-            , input.v4WorldPosition.xyz
+            , stPSinput.v4WorldPosition.xyz
             , pixelNormal.xyz);
+
         if ( 1 == bIsSampleShadowMap && i == 0 )
         {
-            lightPass *= CalcUnshadowedAmountPCF2x2(i, input.v4WorldPosition);
+            lightPass *= CalcUnshadowedAmountPCF2x2(i, stPSinput.v4WorldPosition);
         }
         totalLight += lightPass;
     }
 
     //return float4(pixelNormal, 1.0f);
 
-    float4 vLightSpacePos = input.v4WorldPosition;
+    float4 vLightSpacePos = stPSinput.v4WorldPosition;
     vLightSpacePos = mul(vLightSpacePos, stLights[0].mxView);
     vLightSpacePos = mul(vLightSpacePos, stLights[0].mxProjection);
+
+    //return vLightSpacePos;
     vLightSpacePos.xyz /= vLightSpacePos.w;
+
+    //return vLightSpacePos;
 
     float2 v2LightCoord = 0.5f * vLightSpacePos.xy + 0.5f;
     v2LightCoord.y = 1.0f - v2LightCoord.y;
     float4 fPixelColor = diffuseColor;
-    float fDepthValue = g_t2dShadowMap.Sample(g_SampleClamp, v2LightCoord);
-    vLightSpacePos.z -= 0.05f;
+    float fDepthValue = g_t2dShadowMap.Sample(g_SampleClamp, v2LightCoord).r;
+
+    vLightSpacePos.z -= GRS_SHADOW_DEPTH_BIAS;
+
+    //return float4(fDepthValue, fDepthValue, fDepthValue, 1.0f);
 
     if ( vLightSpacePos.z < fDepthValue )
     {
-        fPixelColor += v4AmbientColor;
-        //float lightIntensity = saturate(-dot(pixelNormal.xyz, stLights[0].v4Direction.xyz));
-        //if ( lightIntensity > 0.0f )
-        //{
+        fPixelColor += v3AmbientColor;
+        float lightIntensity = saturate(-dot(pixelNormal.xyz, stLights[0].v4Direction.xyz));
+        if ( lightIntensity > 0.0f )
+        {
     
-        //    fPixelColor += (diffuseColor * lightIntensity);
-        //}
+            fPixelColor += (diffuseColor * lightIntensity);
+        }
     }
     else
     {
-        fPixelColor -= v4AmbientColor;
+        fPixelColor -= v3AmbientColor;
     }
-    return fPixelColor;
+
+    //return fPixelColor;
     //return float4(vLightSpacePos.z, vLightSpacePos.z, vLightSpacePos.z, 1.0f);
 
     //return vLightSpacePos;
     //
-    //return CalcUnshadowedAmountPCF2x2(0, input.v4WorldPosition);
+    //return CalcUnshadowedAmountPCF2x2(0, stPSinput.v4WorldPosition);
     
-    //float d = g_t2dShadowMap.Sample(g_SampleClamp, input.v2UV);
+    //float d = g_t2dShadowMap.Sample(g_SampleClamp, stPSinput.v2UV);
     //return float4(d, d, d, 1.0f);
     //return (pixelNormal.xyz/length(pixelNormal.xyz),1.0f);
        
     return diffuseColor * saturate(totalLight);
 }
+
+float ShadowCalculation(float4 fragPosLightSpace)
+{
+    // 执行透视除法
+    float4 projCoords = fragPosLightSpace;
+    projCoords.xyz /= projCoords.w;
+    // 变换到[0,1]的范围
+    projCoords = projCoords * 0.5 + 0.5;
+    // 取得最近点的深度(使用[0,1]范围下的fragPosLight当坐标)
+    float closestDepth = g_t2dShadowMap.Sample(g_SampleClamp, projCoords.xy).r;
+    // 取得当前片段在光源视角下的深度
+    float currentDepth = projCoords.z;
+    // 检查当前片段是否在阴影中
+    float shadow = currentDepth > closestDepth ? 1.0f : 0.0f;
+
+    return shadow;
+}
+
+//float4 PSMain(ST_PS_INPUT stPSin) : SV_TARGET
+//{
+//    float3 v3TexelColor = g_t2dDiffuseMap.Sample(g_SampleWrap,stPSin.m_v2UV).rgb;
+//    float3 v3Normal = stPSin.m_v4Normal.xyz;
+//
+//    float3 v3LightColor = 1.0f;
+//    // Ambient
+//    float3 v3AmbientColor = 0.15f * v3TexelColor;
+//    // Diffuse
+//    float3 v3LightDir = normalize(g_v4LightPos.xyz - stPSin.m_v4WorldPosition.xyz);
+//    float  fDiff = max(dot(v3LightDir, v3Normal), 0.0);
+//    float  fDiff = max(dot(v3LightDir, v3Normal), 0.0);
+//    float3 v3DiffuseColor = fDiff * v3LightColor;
+//    // Specular
+//    float3 v3ViewDir = normalize(viewPos - fs_in.FragPos);
+//    float3 v3ReflectDir = reflect(-v3LightDir, v3Normal);
+//    float3 v3HalfwayDir = normalize(v3LightDir + v3ViewDir);
+//    float fSpec = pow(max(dot(v3Normal, v3HalfwayDir), 0.0), 64.0);
+//    float3 v3SpecularColor = fSpec * v3LightColor;
+//    // 计算阴影
+//    float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
+//    float3 v3PixelColor = (v3AmbientColor + (1.0 - shadow) * (v3DiffuseColor + v3SpecularColor)) * v3TexelColor;
+//
+//    return (v3PixelColor.rgb, 1.0f);
+//}
+

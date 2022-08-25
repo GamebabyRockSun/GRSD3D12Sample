@@ -179,8 +179,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 	int									iHeight = 768;
 	UINT								nFrameIndex = 0;
 
-	DXGI_FORMAT							emRenderTarget = DXGI_FORMAT_R8G8B8A8_UNORM;
-	const float							faClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	DXGI_FORMAT				emRenderTarget = DXGI_FORMAT_R8G8B8A8_UNORM;
+	const float						faClearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
 
 	UINT								nDXGIFactoryFlags = 0U;
 	UINT								nRTVDescriptorSize = 0U;

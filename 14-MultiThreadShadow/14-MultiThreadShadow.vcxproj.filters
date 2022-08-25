@@ -43,11 +43,19 @@
     <None Include="Shader\Commons.hlsl">
       <Filter>Shader</Filter>
     </None>
-    <None Include="Shader\PSMain.hlsl">
-      <Filter>Shader</Filter>
-    </None>
     <None Include="Shader\VSMain.hlsl">
       <Filter>Shader</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="VS_PS_Shadow.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="VS_PS_Render.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PSMain.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

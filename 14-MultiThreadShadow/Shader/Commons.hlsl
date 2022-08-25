@@ -1,4 +1,4 @@
-struct PSInput
+struct ST_PS_INPUT
 {
     float4 v4Position       : SV_POSITION;
     float4 v4WorldPosition  : POSITION;

@@ -118,3 +118,7 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 1、一口气添加4个项目（19-22），前三个是空的框架性项目，主要是方便大家在此基础上编写自己的示例，主要是逐步加入了Resize和Fullscreen的支持，Fullscreen使用传统的Alt+Enter键来切换，当然你可以用别的方法控制，函数就在那里，等你调用；
 
 2、22号项目是基于点光源PBR渲染的延续，使用了非常重要的多实例以及多插槽（Multi-Instance、Multi-Slot）方法。
+
+2021-12-27
+
+1、在修改14号示例阴影部分时，需要加载DDS纹理，包括颜色纹理和法线纹理的DDS，在另一个例子中使用了更方便的WIC方式来加载DDS，结果发现Cube的DDS和Plane的DDS都无法加载，最后直接用VS2019打开后发现，这两个DDS使用的编码格式是BGRA格式，这样就需要把它们转存为BC3编码格式，目前WIC已经可以支持到最高BC3压缩方式的DDS纹理，这样就比较方便统一纹理的加载方式。所以最终将Cube和Plane的DDS纹理都转码为BC3方式存储。同时BC3编码格式的DDS纹理体积也变小了，另外在Windows资源管理器中也可以预览了，因为Windows资源管理器使用的解码器与WIC使用的解码器是一致的。

@@ -1073,7 +1073,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			TCHAR pszSkyboxTextureFile[MAX_PATH] = {};
 			//使用“Assets\\sky_cube.dds”时需要XMMATRIX(1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1)乘以xmView
 			StringCchPrintf(pszSkyboxTextureFile, MAX_PATH, _T("%sAssets\\Sky_cube_1024.dds"), pszAppPath);
-
+			
 			ID3D12Resource* pIResSkyBox = nullptr;
 			GRS_THROW_IF_FAILED(LoadDDSTextureFromFile(
 				pID3D12Device4.Get()
@@ -1596,6 +1596,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			//球体的捆绑包
 			pIBundlesEarth->SetGraphicsRootSignature(pIRootSignature.Get());
 			pIBundlesEarth->SetPipelineState(pIPSOEarth.Get());
+
 			ID3D12DescriptorHeap* ppHeapsEarth[] = { pISRVHpEarth.Get(),pISampleHpEarth.Get() };
 			pIBundlesEarth->SetDescriptorHeaps(_countof(ppHeapsEarth), ppHeapsEarth);
 			//设置SRV

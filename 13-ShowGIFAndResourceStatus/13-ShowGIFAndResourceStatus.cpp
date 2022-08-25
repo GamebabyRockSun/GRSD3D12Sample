@@ -326,7 +326,7 @@ TCHAR						 g_pszAppPath[MAX_PATH] = {};
 WCHAR						 g_pszTexcuteFileName[MAX_PATH] = {};
 ST_GRS_GIF				     g_stGIF = {};
 
-ComPtr<ID3D12Device4>		 g_pID3D12Device4;
+ComPtr<ID3D12Device4>			g_pID3D12Device4;
 ComPtr<IWICImagingFactory>	 g_pIWICFactory;
 ComPtr<ID3D12Resource>		 g_pIRWTexture;
 ComPtr<ID3D12DescriptorHeap> g_pICSSRVHeap;	  // Computer Shader CBV SRV Heap
@@ -506,7 +506,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCm
 				, IID_PPV_ARGS(&pIAdapter1)));
 			GRS_SET_DXGI_DEBUGNAME_COMPTR(pIAdapter1);
 			// 创建D3D12.1的设备
-			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&g_pID3D12Device4)));
+			GRS_THROW_IF_FAILED(D3D12CreateDevice(pIAdapter1.Get()
+				, D3D_FEATURE_LEVEL_12_1
+				, IID_PPV_ARGS(&g_pID3D12Device4)));
 			GRS_SET_D3D12_DEBUGNAME_COMPTR(g_pID3D12Device4);
 
 			DXGI_ADAPTER_DESC1 stAdapterDesc = {};

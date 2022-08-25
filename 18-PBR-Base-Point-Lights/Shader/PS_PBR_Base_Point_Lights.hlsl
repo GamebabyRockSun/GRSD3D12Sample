@@ -30,10 +30,10 @@ cbuffer ST_CB_LIGHTS : register( b2 )
 // PBR material parameters
 cbuffer ST_CB_PBR_MATERIAL : register( b3 )
 {
-    float3   g_v3Albedo;      // 反射率
-    float    g_fMetallic;     // 金属度
-    float    g_fRoughness;    // 粗糙度
-    float    g_fAO;           // 环境光遮蔽
+    float3   g_v3Albedo;        // 反射率
+    float    g_fMetallic;           // 金属度
+    float    g_fRoughness;      // 粗糙度
+    float    g_fAO;                  // 环境光遮蔽
 };
 
 struct PSInput

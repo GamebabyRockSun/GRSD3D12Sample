@@ -232,41 +232,41 @@ enum EM_GRS_RENDER_STATUS
 // 渲染子线程参数
 struct ST_GRS_THREAD_PARAMS
 {
-    UINT										m_nThreadIndex;				//序号
-    DWORD									m_dwThisThreadID;
-    HANDLE									m_hThisThread;
-    DWORD									m_dwMainThreadID;
-    HANDLE									m_hMainThread;
+    UINT								m_nThreadIndex;				//序号
+    DWORD								m_dwThisThreadID;
+    HANDLE								m_hThisThread;
+    DWORD								m_dwMainThreadID;
+    HANDLE								m_hMainThread;
 
-    HANDLE									m_hRunEvent;
-    HANDLE									m_hEventShadowOver;
-    HANDLE									m_hEventRenderOver;
+    HANDLE								m_hRunEvent;
+    HANDLE								m_hEventShadowOver;
+    HANDLE								m_hEventRenderOver;
 
-    UINT										m_nCurrentFrameIndex;	//当前渲染后缓冲序号
-    ULONGLONG							m_nStartTime;					//当前帧开始时间
+    UINT								m_nCurrentFrameIndex;	    //当前渲染后缓冲序号
+    ULONGLONG						    m_nStartTime;				//当前帧开始时间
     ULONGLONG							m_nCurrentTime;				//当前时间
-    EM_GRS_RENDER_STATUS		m_nState;							//当前渲染状态 1 渲染阴影 2 正常渲染
+    EM_GRS_RENDER_STATUS		        m_nState;					//当前渲染状态 1 渲染阴影 2 正常渲染
 
-    XMFLOAT4								m_v4ModelPos;
-    TCHAR										m_pszDiffuseFile[MAX_PATH];
-    TCHAR										m_pszNormalFile[MAX_PATH];
+    XMFLOAT4							m_v4ModelPos;
+    TCHAR								m_pszDiffuseFile[MAX_PATH];
+    TCHAR								m_pszNormalFile[MAX_PATH];
 
-    ID3D12Device4* m_pID3D12Device4;
+    ID3D12Device4*                      m_pID3D12Device4;
 
-    ID3D12CommandAllocator* m_pICmdAllocShadow;
-    ID3D12GraphicsCommandList* m_pICmdListShadow;
-    ID3D12CommandAllocator* m_pICmdAlloc;
-    ID3D12GraphicsCommandList* m_pICmdList;
+    ID3D12CommandAllocator*             m_pICmdAllocShadow;
+    ID3D12GraphicsCommandList*          m_pICmdListShadow;
+    ID3D12CommandAllocator*             m_pICmdAlloc;
+    ID3D12GraphicsCommandList*          m_pICmdList;
 
-    ID3D12RootSignature* m_pIRSShadowPass;
-    ID3D12PipelineState* m_pIPSOShadowPass;
-    ID3D12RootSignature* m_pIRSSecondPass;
-    ID3D12PipelineState* m_pIPSOSecondPass;
+    ID3D12RootSignature*                m_pIRSShadowPass;
+    ID3D12PipelineState*                m_pIPSOShadowPass;
+    ID3D12RootSignature*                m_pIRSSecondPass;
+    ID3D12PipelineState*                m_pIPSOSecondPass;
 
-    ID3D12DescriptorHeap* m_pISampleHeap;
+    ID3D12DescriptorHeap*               m_pISampleHeap;
 
-    ID3D12Resource* m_pITexShadowMap;
-    ID3D12Resource* m_pICBLights;
+    ID3D12Resource*                     m_pITexShadowMap;
+    ID3D12Resource*                     m_pICBLights;
 };
 
 // 窗口大小
@@ -274,11 +274,11 @@ int                             g_iWndWidth = 1024;
 int                             g_iWndHeight = 768;
 
 // 阴影用的深度缓冲的分辨率
-int                             g_iDepthWidth = 1024;
-int                             g_iDepthHeight = 1024;
+int                             g_iDepthWidth = 2048;
+int                             g_iDepthHeight = 2048;
 
 D3D12_VIEWPORT					g_stViewPort = { 0.0f, 0.0f, static_cast<float>( g_iWndWidth ), static_cast<float>( g_iWndHeight ) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-D3D12_VIEWPORT					g_stDepthViewPort = { 0.0f, 0.0f, static_cast<float>( g_iWndWidth ), static_cast<float>( g_iWndHeight ) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
+D3D12_VIEWPORT					g_stDepthViewPort = { 0.0f, 0.0f, static_cast<float>(g_iDepthWidth), static_cast<float>(g_iDepthHeight) , D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
 D3D12_RECT						g_stScissorRect = { 0, 0, static_cast<LONG>( g_iWndWidth ), static_cast<LONG>( g_iWndHeight ) };
 
 //初始的默认摄像机的位置
@@ -388,7 +388,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
     ComPtr<ID3D12DescriptorHeap>		pISRVHeapQuad;
     ComPtr<ID3D12DescriptorHeap>		pISampleHeapQuad;
     D3D12_VERTEX_BUFFER_VIEW			stVBViewQuad = {};
-    ST_GRS_CB_MVO* pMOV = nullptr;
+    ST_GRS_CB_MVO*                      pMOV = nullptr;
     SIZE_T								szCBMOVBuf = GRS_UPPER( sizeof( ST_GRS_CB_MVO ), 256 );
     //--------------------------------------------------------------------------------------------------------
 
@@ -519,7 +519,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             // 创建D3D12.1的设备
             GRS_THROW_IF_FAILED( D3D12CreateDevice( pIAdapter1.Get()
-                , D3D_FEATURE_LEVEL_12_1
+                , D3D_FEATURE_LEVEL_11_0
                 , IID_PPV_ARGS( &pID3D12Device4 ) ) );
             GRS_SET_D3D12_DEBUGNAME_COMPTR( pID3D12Device4 );
 
@@ -643,8 +643,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stDepthOptimizedClearValue.Format = emDepthShadowFormat;
             stDepthOptimizedClearValue.DepthStencil.Depth = 1.0f;
             stDepthOptimizedClearValue.DepthStencil.Stencil = 0;
-            
-                
+                            
             D3D12_RESOURCE_DESC stDepthShadowResDesc = {};
             stDepthShadowResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
             stDepthShadowResDesc.Alignment = 0;
@@ -916,6 +915,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stPSODesc.pRootSignature = pIRSShadowPass.Get();
             stPSODesc.PS.BytecodeLength = 0;
             stPSODesc.PS.pShaderBytecode = nullptr;
+            stPSODesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+            stPSODesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
             stPSODesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
             stPSODesc.DSVFormat = emDepthShadowFormat;
             stPSODesc.NumRenderTargets = 0;
@@ -926,8 +927,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
         }
 
         // 10、创建渲染UI矩形（渲染阴影视图）用的管线的根签名、管线状态对象、矩形框VB、CB、采样器（堆）、SRV Heap、CBV、SRV
+        if( TRUE )
         {
-            //--------------------------------------------------------------------------------------------------------------
             //创建渲染矩形的根签名对象
             D3D12_DESCRIPTOR_RANGE1 stDSPRanges[3] = {};
             stDSPRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -1117,7 +1118,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             // 使用阴影深度2D纹理作为Shader的纹理资源
             pID3D12Device4->CreateShaderResourceView( pIDepthShadowBuffer.Get(), &stSRVDesc, stCPUSRVHeapQuad );
 
-            //Sample
+            // Sample
             stHeapDesc.NumDescriptors = 1;  //只有一个Sample
             stHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateDescriptorHeap( &stHeapDesc, IID_PPV_ARGS( &pISampleHeapQuad ) ) );
@@ -1165,12 +1166,14 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             // 设置矩形框的大小，单位同样是像素
             xmMVO = XMMatrixMultiply(
-                XMMatrixScaling( 320.0f, 240.0f, 1.0f )
+                XMMatrixScaling( 200.0f, 200.0f, 1.0f )
                 , xmMVO );
+
+            // 注意上面的计算顺序，实际最终结果是标准的：
+            // Scaling * Translation * View * Orthographic = Model * View * Projection
 
             //设置MVO
             XMStoreFloat4x4( &pMOV->m_mMVO, xmMVO );
-
             //--------------------------------------------------------------------------------------------------------------
 
             // 创建绘制矩形的捆绑包
@@ -1196,7 +1199,6 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             //Draw Call！！！
             pICmdBundlesQuad->DrawInstanced( nQuadVertexCnt, 1, 0, 0 );
             pICmdBundlesQuad->Close();
-
             //--------------------------------------------------------------------------------------------------------------
         }
 
@@ -1243,7 +1245,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
             stClampSamplerDesc.BorderColor[0]
                 = stClampSamplerDesc.BorderColor[1]
                 = stClampSamplerDesc.BorderColor[2]
-                = stClampSamplerDesc.BorderColor[3] = 0;
+                = stClampSamplerDesc.BorderColor[3] = 1.0f;
             stClampSamplerDesc.MinLOD = 0;
             stClampSamplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
             pID3D12Device4->CreateSampler( &stClampSamplerDesc, stSamplerHandle );
@@ -1251,9 +1253,13 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
         // 12、创建全局灯光
         {
-            // 计算透视矩阵（本例中光源 摄像机都使用同一个透视矩阵）
-            XMStoreFloat4x4( &g_mxProjection, XMMatrixPerspectiveFovLH( XM_PIDIV4, (FLOAT) g_iWndWidth / (FLOAT) g_iWndHeight, fNearPlane, fFarPlane ) );
-            //XMMatrixShadow()
+            // 计算透视矩阵
+            XMStoreFloat4x4( &g_mxProjection
+                , XMMatrixPerspectiveFovLH( XM_PIDIV4
+                    , (FLOAT) g_iWndWidth / (FLOAT) g_iWndHeight
+                    , fNearPlane
+                    , fFarPlane ) );
+
             stBufferResSesc.Width = szLightBuf; //注意缓冲尺寸设置为256边界对齐大小
             GRS_THROW_IF_FAILED( pID3D12Device4->CreateCommittedResource(
                 &stUploadHeapProps
@@ -1272,18 +1278,34 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
             for ( int i = 0; i < GRS_NUM_LIGHTS; i++ )
             {
-                g_pstLights->m_stLights[i].m_v4Position = { 0.0f, 5.0f, -10.0f, 1.0f };
-                g_pstLights->m_stLights[i].m_v4Direction = { 0.0, 0.0f, 1.0f, 0.0f };
-                g_pstLights->m_stLights[i].m_v4Falloff = { 80.0f, 1.0f, 0.0f, 1.0f };
-                g_pstLights->m_stLights[i].m_v4Color = { 0.9f, 0.9f, 0.9f, 1.0f };
+                g_pstLights->m_stLights[i].m_v4Position  = { 0.0f, 10.0f, -5.0f, 0.0f };
+                g_pstLights->m_stLights[i].m_v4Direction = { 0.0, -1.0f, 1.0f, 0.0f };
+                g_pstLights->m_stLights[i].m_v4Falloff   = { 80.0f, 1.0f, 0.0f, 0.2f };
+                g_pstLights->m_stLights[i].m_v4Color     = { 1.0f, 0.9f, 0.9f, 1.0f };
 
                 XMVECTOR eye = XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Position );
-                XMVECTOR at = XMVectorAdd( eye, XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Direction ) );
+                //XMVECTOR at = XMVectorAdd( eye, XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Direction ) );
+
+                XMVECTOR at = XMVectorSet(0.0, -1.0f, 10.0f, 0.0f);
+                XMStoreFloat4(&g_pstLights->m_stLights[i].m_v4Direction, XMVectorSubtract(at,eye));
+               
                 XMVECTOR up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
 
                 XMStoreFloat4x4( &g_pstLights->m_stLights[i].m_mxView, XMMatrixLookAtLH( eye, at, up ) );
 
-                g_pstLights->m_stLights[i].m_mxProjection = g_mxProjection;
+                XMStoreFloat4x4(&g_pstLights->m_stLights[i].m_mxProjection
+                    , XMMatrixOrthographicOffCenterLH(
+                          0.0f  
+                        , static_cast<float>(g_iDepthWidth)
+                        , 0.0f
+                        , static_cast<float>(g_iDepthHeight)
+                        , fNearPlane
+                        , fFarPlane));
+                    //, XMMatrixPerspectiveFovLH(XM_PIDIV2
+                    //    , (FLOAT)g_iDepthWidth / (FLOAT)g_iDepthHeight
+                    //    , fNearPlane
+                    //    , fFarPlane));
+               
             }
 
             g_pstLights->m_stLights[1].m_v4Color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -1456,18 +1478,18 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
 
                         XMStoreFloat4x4( &g_mxWorld, XMMatrixIdentity() );
 
-                        // 变换光源
-                        for ( int i = 0; i < GRS_NUM_LIGHTS; i++ )
-                        {
-                            XMVECTOR eye = XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Position );
-                            XMVECTOR at = { 0.0f,0.0f,0.0f,0.0f };
-                            XMVECTOR up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
+                        //// 变换光源
+                        //for ( int i = 0; i < GRS_NUM_LIGHTS; i++ )
+                        //{
+                        //    XMVECTOR eye = XMLoadFloat4( &g_pstLights->m_stLights[i].m_v4Position );
+                        //    XMVECTOR at = { 0.0f,0.0f,0.0f,0.0f };
+                        //    XMVECTOR up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
 
-                            XMStoreFloat4x4( &g_pstLights->m_stLights[i].m_mxView
-                                , XMMatrixLookAtLH( eye, at, up ) );
-                        }
-                        // 渲染阴影 以第一个光源的空间为 视空间
-                        g_mxView = g_pstLights->m_stLights[0].m_mxView;
+                        //    XMStoreFloat4x4( &g_pstLights->m_stLights[i].m_mxView
+                        //        , XMMatrixLookAtLH( eye, at, up ) );
+                        //}
+                        //// 渲染阴影 以第一个光源的空间为 视空间
+                        //g_mxView = g_pstLights->m_stLights[0].m_mxView;
                     }
 
                     GRS_THROW_IF_FAILED( pICmdAllocPre->Reset() );
@@ -1498,7 +1520,8 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
                         pICmdListPre->RSSetViewports( 1, &g_stDepthViewPort );
                         pICmdListPre->RSSetScissorRects( 1, &g_stScissorRect );
 
-                        pICmdListPre->ClearDepthStencilView( stDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
+                        pICmdListPre->ClearDepthStencilView( stDSVHandle
+                            , D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
                     }
 
                     arHWaited.RemoveAll();
