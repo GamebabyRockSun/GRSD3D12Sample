@@ -792,7 +792,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 
             // 填充每实例数据
             //创建 Per Instance Data 仅使用Upload隐式堆 iRowCnts行 * iColCnts列个实例
-            g_stBufferResSesc.Width = iRowCnts * iColCnts * sizeof(ST_GRS_PER_INSTANCE);
+            g_stBufferResSesc.Width = (UINT64)(iRowCnts * iColCnts * sizeof(ST_GRS_PER_INSTANCE));
             GRS_THROW_IF_FAILED(pID3D12Device4->CreateCommittedResource(
                 &g_stUploadHeapProps
                 , D3D12_HEAP_FLAG_NONE
@@ -1153,8 +1153,8 @@ void OnSize(UINT width, UINT height, bool minimized)
         // 8、更新视口大小和齐次包围盒大小
         g_stGPUStatus.m_stViewPort.TopLeftX = 0.0f;
         g_stGPUStatus.m_stViewPort.TopLeftY = 0.0f;
-        g_stGPUStatus.m_stViewPort.Width = g_stGPUStatus.m_iWndWidth;
-        g_stGPUStatus.m_stViewPort.Height = g_stGPUStatus.m_iWndHeight;
+        g_stGPUStatus.m_stViewPort.Width = (float)g_stGPUStatus.m_iWndWidth;
+        g_stGPUStatus.m_stViewPort.Height = (float)g_stGPUStatus.m_iWndHeight;
 
         g_stGPUStatus.m_stScissorRect.left = static_cast<LONG>(g_stGPUStatus.m_stViewPort.TopLeftX);
         g_stGPUStatus.m_stScissorRect.right = static_cast<LONG>(g_stGPUStatus.m_stViewPort.TopLeftX + g_stGPUStatus.m_stViewPort.Width);

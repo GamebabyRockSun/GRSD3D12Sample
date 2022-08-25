@@ -336,7 +336,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			RegisterClassEx(&wcex);
 
 			DWORD dwWndStyle = WS_OVERLAPPED | WS_SYSMENU;
-			RECT rtWnd = { 0, 0, nWndWidth, nWndHeight };
+			RECT rtWnd = { 0, 0, (LONG)nWndWidth, (LONG)nWndHeight };
 			AdjustWindowRect(&rtWnd, dwWndStyle, FALSE);
 
 			// 计算窗口居中的屏幕坐标
@@ -1645,7 +1645,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 						stGPUParams[nIDGPUMain].m_pICmdList->ResourceBarrier(1, &stRTVStateTransBarrier);
 
 						D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = stGPUParams[nIDGPUMain].m_pIDHRTV->GetCPUDescriptorHandleForHeapStart();
-						rtvHandle.ptr += (nCurrentFrameIndex * stGPUParams[nIDGPUMain].m_nszRTV);
+						rtvHandle.ptr += (SIZE_T)(nCurrentFrameIndex * stGPUParams[nIDGPUMain].m_nszRTV);
 						D3D12_CPU_DESCRIPTOR_HANDLE stDSVHandle = stGPUParams[nIDGPUMain].m_pIDHDSVTex->GetCPUDescriptorHandleForHeapStart();
 
 						stGPUParams[nIDGPUMain].m_pICmdList->OMSetRenderTargets(
