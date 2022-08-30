@@ -1,0 +1,39 @@
+[Header]
+ICOfile = "WinterForest_thumb.jpg"
+PREVIEWfile = "WinterForest_preview.jpg"
+Name = "Winter Forest"
+Author = "Blochi"
+Location = "Slovakia"
+Comment = "Snow on all trees, deep in the fairy tale forest, overcast skylight only"
+GEOlat = 48.3323043999999980
+GEOlong = 17.4495843000000010
+Link = "www.hdrlabs.com/sibl/"
+Date = "2007:12:31"
+Time = "17:00:00"
+Height = 1.600000
+
+[Background]
+BGfile = "WinterForest_8k.jpg"
+BGmap = 1
+BGu = 0.000000
+BGv = 0.000000
+BGheight = 4096
+
+[Enviroment]
+EVfile = "WinterForest_Env.hdr"
+EVmap = 1
+EVu = 0.000000
+EVv = 0.000000
+EVheight = 180
+EVmulti = 1.000000
+EVgamma = 1.800000
+
+[Reflection]
+REFfile = "WinterForest_Ref.hdr"
+REFmap = 1
+REFu = 0.000000
+REFv = 0.000000
+REFheight = 2048
+REFmulti = 1.000000
+REFgamma = 1.800000
+

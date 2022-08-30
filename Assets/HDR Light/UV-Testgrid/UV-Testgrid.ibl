@@ -1,0 +1,38 @@
+[Header]
+ICOfile = "testgrid_icon.jpg"
+Name = "UV-Testgrid"
+Author = ""
+Location = ""
+Comment = "edit the .ibl file to test various sun positions"
+
+[Background]
+BGfile = "testgrid.jpg"
+BGmap = 1
+BGu = 0.000000
+BGv = 0.000000
+BGheight = 800
+
+[Enviroment]
+EVfile = "testgrid.jpg"
+EVmap = 1
+EVu = 0.000000
+EVv = 0.000000
+EVheight = 800
+EVmulti = 1.000000
+EVgamma = 1.000000
+
+[Reflection]
+REFfile = "testgrid.jpg"
+REFmap = 1
+REFu = 0.000000
+REFv = 0.000000
+REFheight = 800
+REFmulti = 1.000000
+REFgamma = 1.000000
+
+[Sun]
+SUNcolor = 255,255,255
+SUNmulti = 1.000000
+SUNu = 0.250000
+SUNv = 0.500000
+

@@ -1343,6 +1343,31 @@ void OnSize(UINT width, UINT height, bool minimized)
         g_stD3DDevice.m_stScissorRect.top = static_cast<LONG>(g_stD3DDevice.m_stViewPort.TopLeftY);
         g_stD3DDevice.m_stScissorRect.bottom = static_cast<LONG>(g_stD3DDevice.m_stViewPort.TopLeftY + g_stD3DDevice.m_stViewPort.Height);
 
+        //---------------------------------------------------------------------------------------------
+        // 更新天空盒远平面尺寸
+        float fHighW = -1.0f - (1.0f / (float)g_stD3DDevice.m_iWndWidth);
+        float fHighH = -1.0f - (1.0f / (float)g_stD3DDevice.m_iWndHeight);
+        float fLowW = 1.0f + (1.0f / (float)g_stD3DDevice.m_iWndWidth);
+        float fLowH = 1.0f + (1.0f / (float)g_stD3DDevice.m_iWndHeight);
+
+        ST_GRS_SKYBOX_VERTEX stSkyboxVertices[4] = {};
+
+        stSkyboxVertices[0].m_v4Position = XMFLOAT4(fLowW, fLowH, 1.0f, 1.0f);
+        stSkyboxVertices[1].m_v4Position = XMFLOAT4(fLowW, fHighH, 1.0f, 1.0f);
+        stSkyboxVertices[2].m_v4Position = XMFLOAT4(fHighW, fLowH, 1.0f, 1.0f);
+        stSkyboxVertices[3].m_v4Position = XMFLOAT4(fHighW, fHighH, 1.0f, 1.0f);
+
+        //加载天空盒子的数据
+        g_stBufferResSesc.Width = GRS_UPPER(sizeof(stSkyboxVertices), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
+        //使用map-memcpy-unmap大法将数据传至顶点缓冲对象        
+        BYTE* pData = nullptr;
+
+        GRS_THROW_IF_FAILED(g_stSkyBoxData.m_pIVertexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&pData)));
+        memcpy(pData, stSkyboxVertices, sizeof(stSkyboxVertices));
+        g_stSkyBoxData.m_pIVertexBuffer->Unmap(0, nullptr);
+        //---------------------------------------------------------------------------------------------
+
 
         // 9、设置下事件状态，从消息旁路返回主消息循环        
         SetEvent(g_stD3DDevice.m_hEventFence);

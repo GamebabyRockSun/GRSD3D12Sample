@@ -22,6 +22,7 @@
 #include <dxgidebug.h>
 #endif
 
+#include "../Commons/GRS_Def.h"
 #include "../Commons/GRS_Assimp_Loader.h"
 #include "../Commons/GRS_D3D12_Utility.h"
 #include "../Commons/GRS_Texture_Loader.h"
@@ -36,13 +37,6 @@ using namespace Microsoft::WRL;
 #pragma comment(lib, "d3dcompiler.lib")
 
 #pragma comment(lib, "assimp-vc142-mtd.lib")
-
-#define GRS_SLEEP(dwMilliseconds)  WaitForSingleObject(GetCurrentThread(),dwMilliseconds)
-#define GRS_THROW_IF_FAILED(hr) {HRESULT _hr = (hr);if (FAILED(_hr)){ ATLTRACE("Error: 0x%08x\n",_hr); AtlThrow(_hr); }}
-//更简洁的向上边界对齐算法 内存管理中常用 请记住
-#define GRS_UPPER(A,B) ((size_t)(((A)+((B)-1))&~((B) - 1)))
-//上取整除法
-#define GRS_UPPER_DIV(A,B) ((UINT)(((A)+((B)-1))/(B)))
 
 #define GRS_WND_CLASS _T("GRS Game Window Class")
 #define GRS_WND_TITLE _T("GRS DirectX12 Assimp Import Model & Animation & Render")
@@ -1267,7 +1261,7 @@ int APIENTRY _tWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    
         FLOAT fStartTime = ( FLOAT )::GetTickCount64();
         FLOAT fCurrentTime = fStartTime;
         FLOAT fTimeInSeconds = ( fCurrentTime - fStartTime ) / 1000.0f;
-        CGRSARMatrix arBoneMatrixs;
+        CGRSMatrixArray arBoneMatrixs;
 
         ShowWindow( hWnd, nCmdShow );
         UpdateWindow( hWnd );

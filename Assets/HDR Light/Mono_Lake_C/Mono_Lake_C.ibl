@@ -1,0 +1,42 @@
+[Header]
+ICOfile = "Mono_Lake_C_Thumb.jpg"
+PREVIEWfile = "Mono_Lake_C_preview.jpg"
+Name = "Mono Lake C"
+Author = "Blochi"
+Location = "California"
+Comment = "in the shade of a tufa stone, by the water, rocks"
+GEOlat = 37.9774919277906
+GEOlong = -119.10999298095703
+Link = "http://www.hdrlabs.com/sibl/archive.html"
+Date = "2006:11:25"
+Time = "14:30:00"
+Height = 0.7
+North = 0.62
+
+[Background]
+; beware of the 32 MegaPixels
+BGfile = "Mono_Lake_C_HiRes.jpg"
+BGmap = 1
+BGu = 0.000000
+BGv = 0.000000
+BGheight = 4000
+
+[Enviroment]
+EVfile = "Mono_Lake_C_Env.hdr"
+EVmap = 1
+EVu = 0.000000
+EVv = 0.000000
+EVheight = 180
+EVmulti = 1.000000
+EVgamma = 1.800000
+
+[Reflection]
+REFfile = "Mono_Lake_C_Ref.hdr"
+REFmap = 1
+REFu = 0.000000
+REFv = 0.000000
+REFheight = 800
+REFmulti = 1.000000
+REFgamma = 1.800000
+
+

@@ -2,6 +2,7 @@
 #include <SDKDDKVer.h>
 #define WIN32_LEAN_AND_MEAN // 从 Windows 头中排除极少使用的资料
 #include <windows.h>
+#include <dxgi1_6.h>
 #include <d3d12.h> //for d3d12
 
 //------------------------------------------------------------------------------------------------------------

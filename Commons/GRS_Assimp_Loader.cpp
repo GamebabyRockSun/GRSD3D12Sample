@@ -1,5 +1,7 @@
 #include "GRS_Assimp_Loader.h"
 
+#pragma comment(lib, "assimp-vc142-mtd.lib")
+
 #define GRS_USEPRINTFA() CHAR pBuf[1024] = {};
 #define GRS_TRACEA(...) \
     StringCchPrintfA(pBuf,1024,__VA_ARGS__);\
@@ -7,14 +9,17 @@
 
 static Assimp::Importer g_aiImporter;
 
-BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData)
+BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData,UINT nFlags)
 {
 	stMeshData.m_nCurrentAnimIndex = 0;
-	stMeshData.m_paiModel = g_aiImporter.ReadFile(pszFileName, ASSIMP_LOAD_FLAGS);
+	stMeshData.m_paiModel = g_aiImporter.ReadFile(pszFileName, nFlags);
 
-	if (nullptr == stMeshData.m_paiModel)
+	if ( nullptr == stMeshData.m_paiModel )
 	{
-		ATLTRACE("无法解析文件(%s)：%s (%d)\n", pszFileName, g_aiImporter.GetErrorString(), ::GetLastError());
+		ATLTRACE("无法解析文件(%s)：%s (%d)\n"
+			, pszFileName
+			, g_aiImporter.GetErrorString()
+			, ::GetLastError());
 		return FALSE;
 	}
 
@@ -42,34 +47,74 @@ BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData)
 	{
 		paiSubMesh = stMeshData.m_paiModel->mMeshes[i];
 
-		stMeshData.m_arSubMeshInfo[i].m_nMaterialIndex = paiSubMesh->mMaterialIndex;
-		stMeshData.m_arSubMeshInfo[i].m_nNumIndices = paiSubMesh->mNumFaces * GRS_INDICES_PER_FACE;
-		stMeshData.m_arSubMeshInfo[i].m_nBaseVertex = nNumVertices;
-		stMeshData.m_arSubMeshInfo[i].m_nBaseIndex = nNumIndices;
+		stMeshData.m_arSubMeshInfo[i].m_nMaterialIndex	= paiSubMesh->mMaterialIndex;
+		stMeshData.m_arSubMeshInfo[i].m_nNumIndices		= paiSubMesh->mNumFaces * GRS_INDICES_PER_FACE;
+		stMeshData.m_arSubMeshInfo[i].m_nBaseVertex		= nNumVertices;
+		stMeshData.m_arSubMeshInfo[i].m_nBaseIndex		= nNumIndices;
+
+		stMeshData.m_arSubMeshInfo[i].m_bHasPosition	= paiSubMesh->HasPositions();
+		stMeshData.m_arSubMeshInfo[i].m_bHasNormal		= paiSubMesh->HasNormals();
+		stMeshData.m_arSubMeshInfo[i].m_bHasTexCoords	= paiSubMesh->HasTextureCoords(0);
+		stMeshData.m_arSubMeshInfo[i].m_bHasTangent		= paiSubMesh->HasTangentsAndBitangents();
 
 		// 当前Mesh的顶点数量和索引数量累加后，就是下个Mesh顶点和索引在整体缓冲中的索引开始位置
 		nNumVertices	+= stMeshData.m_paiModel->mMeshes[i]->mNumVertices;
 		nNumIndices		+= stMeshData.m_arSubMeshInfo[i].m_nNumIndices;		
 
 		// 加载顶点常规数据
-		for (UINT j = 0; j < paiSubMesh->mNumVertices; j++)
+		for ( UINT j = 0; j < paiSubMesh->mNumVertices; j++ )
 		{
-			stMeshData.m_arPositions.Add(XMFLOAT4(paiSubMesh->mVertices[j].x
-				, paiSubMesh->mVertices[j].y
-				, paiSubMesh->mVertices[j].z
-				, 1.0f));
+			if ( stMeshData.m_arSubMeshInfo[i].m_bHasPosition )
+			{
+				stMeshData.m_arPositions.Add(XMFLOAT4(paiSubMesh->mVertices[j].x
+					, paiSubMesh->mVertices[j].y
+					, paiSubMesh->mVertices[j].z
+					, 1.0f));
+			}
+			else
+			{
+				stMeshData.m_arPositions.Add(XMFLOAT4(0.0f,0.0f,0.0f,1.0f));
+			}
 
-			stMeshData.m_arNormals.Add(XMFLOAT4(paiSubMesh->mNormals[j].x
-				, paiSubMesh->mNormals[j].y
-				, paiSubMesh->mNormals[j].z
-				, 0.0f));
+			if( stMeshData.m_arSubMeshInfo[i].m_bHasNormal )
+			{
+				stMeshData.m_arNormals.Add(XMFLOAT4(paiSubMesh->mNormals[j].x
+					, paiSubMesh->mNormals[j].y
+					, paiSubMesh->mNormals[j].z
+					, 0.0f));
+			}
+			else
+			{
+				stMeshData.m_arNormals.Add(XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f));
+			}
+
+			if ( stMeshData.m_arSubMeshInfo[i].m_bHasTangent )
+			{
+				stMeshData.m_arTangent.Add(XMFLOAT4( paiSubMesh->mTangents[j].x
+				, paiSubMesh->mTangents[j].y
+				, paiSubMesh->mTangents[j].z
+					, 0.0f));
+				stMeshData.m_arBitangent.Add(XMFLOAT4(paiSubMesh->mBitangents[j].x
+					, paiSubMesh->mBitangents[j].y
+					, paiSubMesh->mBitangents[j].z
+					, 0.0f));
+			}
+			else
+			{
+				stMeshData.m_arTangent.Add(XMFLOAT4(0.0f,0.0f,0.0f, 0.0f));
+				stMeshData.m_arBitangent.Add(XMFLOAT4(0.0f,0.0f,0.0f, 0.0f));
+			}
 
 			// 注意这个地方只考虑一个纹理的情况，其实最多可以有八个，可以再做个循环进行加载
-			const aiVector3D* pTexCoord = paiSubMesh->HasTextureCoords(0)
-				? &(paiSubMesh->mTextureCoords[0][j])
-				: &Zero3D;
-
-			stMeshData.m_arTexCoords.Add(XMFLOAT2(pTexCoord->x, pTexCoord->y));
+			if ( stMeshData.m_arSubMeshInfo[i].m_bHasTexCoords )
+			{
+				stMeshData.m_arTexCoords.Add(XMFLOAT2(paiSubMesh->mTextureCoords[0][j].x
+					, paiSubMesh->mTextureCoords[0][j].y));
+			}
+			else
+			{
+				stMeshData.m_arTexCoords.Add(XMFLOAT2(0.0f,0.0f));
+			}
 		}
 
 		// 加载索引数据
@@ -77,7 +122,7 @@ BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData)
 		{
 			const aiFace& Face = paiSubMesh->mFaces[j];
 			// 已经通过导入标志强制为三角形网格了，每个面就三个索引
-			ATLASSERT(Face.mNumIndices == GRS_INDICES_PER_FACE);
+			ATLASSERT( Face.mNumIndices == GRS_INDICES_PER_FACE );
 
 			for (UINT k = 0; k < Face.mNumIndices; k++)
 			{
@@ -337,6 +382,9 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 	MXEqual(mxNodeTransformation, pNode->mTransformation);
 	mxNodeTransformation = XMMatrixTranspose(mxNodeTransformation);
 
+	XMMATRIX mxThisTrans = XMMatrixTranspose(mxNodeTransformation);
+	//mxThisTrans = XMMatrixTranspose(XMMatrixInverse(nullptr,mxNodeTransformation));
+
 	CStringA strNodeName(pNode->mName.data);
 
 	const aiNodeAnim* pNodeAnim = FindNodeAnim(pAnimation, strNodeName);
@@ -359,8 +407,7 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 		XMMATRIX mxTranslationM = XMMatrixTranslationFromVector(vTranslation);
 
 		// 骨骼动画中 最经典的 SQT 组合变换
-		mxNodeTransformation = mxScaling * mxRotationM * mxTranslationM; 
-		// OpenGL：TranslationM* RotationM* ScalingM;
+		mxNodeTransformation = mxScaling * mxRotationM * mxTranslationM; // TranslationM* RotationM* ScalingM;
 	}
 
 	XMMATRIX mxGlobalTransformation = mxNodeTransformation *  mxParentTransform;
@@ -370,6 +417,7 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 	{
 		stMeshData.m_arBoneDatas[nBoneIndex].m_mxFinalTransformation
 			= stMeshData.m_arBoneDatas[nBoneIndex].m_mxBoneOffset
+			/** mxThisTrans*/
 			* mxGlobalTransformation 
 			* stMeshData.m_mxModel;
 	}
@@ -384,7 +432,7 @@ void ReadNodeHeirarchy(ST_GRS_MESH_DATA& stMeshData
 	}
 }
 
-VOID CalcAnimation(ST_GRS_MESH_DATA& stMeshData, FLOAT fTimeInSeconds, CGRSARMatrix& arTransforms)
+VOID CalcAnimation(ST_GRS_MESH_DATA& stMeshData, FLOAT fTimeInSeconds, CGRSMatrixArray& arTransforms)
 {
 	XMMATRIX mxIdentity = XMMatrixIdentity();
 	aiNode* pNode = stMeshData.m_paiModel->mRootNode;

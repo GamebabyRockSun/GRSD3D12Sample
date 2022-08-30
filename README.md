@@ -6,6 +6,8 @@
 
 &emsp;&emsp;教程中的代码跟现在这个项目中的代码有些出入，示例代码请以这里为准。
 
+
+
 &emsp;&emsp;这套示例代码的目标就是不使用任何封装，并且使用比较原始的C-风格代码来展示D3D12编程的方方面面。不使用任何封装使大家更集中精力于D3D12本身，而不至于分散注意力。并且线性化（甚至连独立的函数都没有怎么封装）的代码风格有助于大家学习和理解D3D12，根本目的就在于让大家彻底理解和消化D3D12本身。当彻底搞明白D3D12接口之后，各位想怎么封装就怎么去封装吧。那才是真正的自由王国！
 
 # 1、1-D3D12Triangle
@@ -130,4 +132,42 @@
 
 &emsp;&emsp;这个示例是个过渡示例，重点是让大家理解 Cube Map 或者说 Skybox（天空盒）纹理的构造，及单独每个面图片的创建和加载方法，也是为了让大家未来彻底丢掉DDS纹理做铺垫，因为DDS的来源较少，并且修改和使用也不直观，作为学习来说 DDS 格式本身就已经“过渡封装”了，非常不利于大家理解和掌握纹理操作的本质。另外这个示例也是为之后的 IBL 渲染做好铺垫，因为IBL渲染中有大量的Texture操作，尤其是有大量的 Cube Map 操作，如果不能很好的理解 Cube Texture 的构造及创建等相关操作方法的话，就几乎无法理解 IBL 的根本原理。
 
-![image-20220829121837669](ScreenShot/24.png)
+![image-20220829121837669](ScreenShot/24.jpg)
+
+# 25-IBL-MultiInstance-Sphere
+
+&emsp;&emsp;这个示例是基于IBL（Image-Based Lighting）的 PBR 无材质纹理、无法线贴图等的基本示例。因为IBL本身处理过程的复杂性，用到了很多预积分计算，同时 HDR Image 体积也较大，为了能达到演示的最佳效果，建议在**显卡配置不够时，尽量不要运行这个示例**。如果机器配置较低，并要运行，**请尽量调低几个参数**：一个是在 GRS_PBR_Function.hlsli 中的 GRS_INT_SAMPLES_CNT 调至 1024 或更低的值，以减少积分计算的量，另外运行中选择 HDR 光照图，和天空盒背景图时，请选择较低分辨率的小体积图片，从而使示例能够运行而不用耗费过多资源。若要看比较好的效果，在显卡条件够的情况下（推荐RTX2070及以上）需要反过来做，积分采样次数可以调至4096或更高，以消除摩尔纹，并达到更佳的效果。
+
+&emsp;&emsp;HDR 图片来自：[sIBL Archive (hdrlabs.com)](http://www.hdrlabs.com/sibl/archive.html) ，非常感谢 hdrlabs 的慷慨奉献！
+
+&emsp;&emsp;示例中还用到stb库，为了简化Git操作，直接复制了一份在项目中，stb源地址在：[https://github.com/nothings/stb.git](https://github.com/nothings/stb.git) ,在此表示感谢！
+
+&emsp;&emsp;示例中关于解算等距柱状纹理贴图的最终修正算法，来自一位不愿公开信息的网友，在此表示感谢！
+
+&emsp;&emsp;示例整体主要参考了：
+
+[漫反射辐照 - LearnOpenGL CN (learnopengl-cn.github.io)](https://learnopengl-cn.github.io/07 PBR/03 IBL/01 Diffuse irradiance/)
+
+[镜面IBL - LearnOpenGL CN (learnopengl-cn.github.io)](https://learnopengl-cn.github.io/07 PBR/03 IBL/02 Specular IBL/)
+
+等文章，在此表示感谢！
+
+&emsp;&emsp;示例中引用的 HDR_COLOR_CONV.hlsli 来自微软示例：[microsoft/DirectX-Graphics-Samples](https://github.com/microsoft/DirectX-Graphics-Samples) ，处理颜色空间转换，尤其是 Gamma 矫正时推荐使用这个头文件。在此也表示感谢！
+
+![image-20220830190322210](ScreenShot/25-1.jpg)
+
+![image-20220830190552194](ScreenShot/25-2.jpg)
+
+![image-20220830190748845](ScreenShot/25-3.jpg)
+
+&emsp;&emsp;**郑重声明：若因您贸然运行该示例而导致显卡损坏或设备损坏等，与本人无关！** 
+
+# 26-Normal-Map-And-Tangent-Space
+
+&emsp;&emsp;这个示例主要演示了经典的法线贴图的基本操作，并且演示了如何利用顶点的法线和切线属性生成正确的切线空间，并在 Pixel Shader 中正确的变换逐顶点法线。这是非常常用和基础的一项操作，学习并掌握好它，是将来应对和实现更高级复杂的光照渲染模型的基础。这也是为了后续的 PBR 带材质渲染示例做准备，以方便各位平滑的阅读下一个示例。
+
+![image-20220830190953187](ScreenShot/26-1.jpg)
+
+![image-20220830191048067](ScreenShot/26-2.jpg)
+
+&emsp;&emsp;再次强调一下，这套示例主要是为了演示D3D12的一些基本调用方法以及基本Shader编写的，不是介绍任何引擎框架或渲染框架及相关封装知识的。所有示例都基本保持C-Style风格的编写，并且代码集中编写，是为了方便各位阅读理解并掌握好基础技能的。因此也请各位不要过于纠结示例代码中的那些蹩脚的封装或者不严格的一些定义，这些只是为了方便组织代码而引入的东西，并没有暗示或示范说如何进行封装的内容，其本身并没有价值也没有意义，千万不要随便使用它们在你的任何正式项目中，以防发生意外，请一定关注每个示例主要向你展示的内容即可。

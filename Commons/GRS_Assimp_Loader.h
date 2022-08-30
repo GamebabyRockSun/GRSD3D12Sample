@@ -23,7 +23,7 @@ using namespace DirectX;
 // aiProcess_ConvertToLeftHanded
 //| aiProcess_MakeLeftHanded\
 
-#define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate\
+#define ASSIMP_LOAD_FLAGS_DEFAULT (aiProcess_Triangulate\
  | aiProcess_GenSmoothNormals\
  | aiProcess_GenBoundingBoxes\
  | aiProcess_JoinIdenticalVertices\
@@ -49,7 +49,7 @@ public:
 public:
 	VOID AddBoneData(UINT nBoneID, FLOAT fWeight)
 	{
-		for (UINT32 i = 0; i < GRS_BONE_DATACNT; i++)
+		for ( UINT32 i = 0; i < GRS_BONE_DATACNT; i++ )
 		{
 			if ( m_fWeights[i] == 0.0 )
 			{
@@ -70,17 +70,6 @@ struct ST_GRS_BONE_DATA
 	XMMATRIX m_mxFinalTransformation;
 };
 
-typedef CAtlArray<XMFLOAT4>						CGRSARPositions;
-typedef CAtlArray<XMFLOAT4>						CGRSARNormals;
-typedef CAtlArray<XMFLOAT2>						CGRSARTexCoords;
-typedef CAtlArray<UINT>								CGRSARIndices;
-typedef CAtlArray<ST_GRS_VERTEX_BONE>	CGRSARVertexBones;
-typedef CAtlArray<ST_GRS_BONE_DATA>		CGRSARBoneDatas;
-typedef CAtlArray<CStringA>						CGRSARTTextureName;
-typedef CAtlArray<XMMATRIX>					CGRSARMatrix;
-typedef CAtlMap<UINT, CStringA>				CGRSMapUINT2String;
-typedef CAtlMap<CStringA, UINT>				CGRSMapString2UINT;
-typedef CAtlMap<UINT, UINT>						CGRSMapUINT2UINT;
 // 模型中子网格的顶点偏移等信息
 struct ST_GRS_SUBMESH_DATA
 {
@@ -88,33 +77,59 @@ struct ST_GRS_SUBMESH_DATA
 	UINT m_nBaseVertex;
 	UINT m_nBaseIndex;
 	UINT m_nMaterialIndex;
+
+	BOOL m_bHasPosition;
+	BOOL m_bHasNormal;
+	BOOL m_bHasTexCoords;
+	BOOL m_bHasTangent;
 };
 
-typedef CAtlArray<ST_GRS_SUBMESH_DATA> CGRSSubMesh;
+typedef CAtlArray<XMFLOAT2>				CGRSFloat2Array;
+typedef CAtlArray<XMFLOAT3>				CGRSFloat3Array;
+typedef CAtlArray<XMFLOAT4>				CGRSFloat4Array;
+typedef CAtlArray<XMMATRIX>				CGRSMatrixArray;
+									   
+typedef CAtlArray<INT>					CGRSIntArray;
+typedef CAtlArray<UINT>					CGRSUIntArray;
+									   
+typedef CAtlArray<CStringA>				CGRSStringArrayA;
+typedef CAtlMap<UINT, CStringA>			CGRSMapUINT2String;
+typedef CAtlMap<CStringA, UINT>			CGRSMapString2UINT;
+typedef CAtlMap<UINT, UINT>				CGRSMapUINT2UINT;
+									   
+typedef CAtlArray<ST_GRS_VERTEX_BONE>	CGRSARVertexBones;
+typedef CAtlArray<ST_GRS_BONE_DATA>		CGRSARBoneDatas;
+typedef CAtlArray<ST_GRS_SUBMESH_DATA>	CGRSSubMesh;
 
-const UINT			g_ncSlotCnt = 4;		// 用4个插槽上传顶点数据
+const UINT				g_ncSlotCnt = 4;		// 用4个插槽上传顶点数据
 struct ST_GRS_MESH_DATA
 {
-	const aiScene*		m_paiModel;
-	CStringA			m_strFileName;
 	XMMATRIX			m_mxModel;
+	CStringA			m_strFileName;
+	const aiScene*		m_paiModel;
 
 	CGRSSubMesh			m_arSubMeshInfo;
 
-	CGRSARPositions		m_arPositions;
-	CGRSARNormals		m_arNormals;
-	CGRSARTexCoords		m_arTexCoords;
+	CGRSFloat4Array		m_arPositions;		// POSITION
+	CGRSFloat4Array		m_arNormals;		// NORMAL
+	CGRSFloat2Array		m_arTexCoords;		// TEXCOORDS
+	CGRSFloat4Array		m_arTangent;		// TANGENT
+	CGRSFloat4Array		m_arBitangent;		// BITANGENT
+	
 	CGRSARVertexBones	m_arBoneIndices;
-	CGRSARIndices		m_arIndices;
 
+	CGRSUIntArray		m_arIndices;
+
+	CGRSStringArrayA	m_arTextureName;
 	CGRSMapString2UINT	m_mapTextrueName2Index;
 	CGRSMapUINT2UINT	m_mapTextureIndex2HeapIndex;
 
 	CGRSARBoneDatas		m_arBoneDatas;
+
 	CGRSMapString2UINT	m_mapName2Bone;			//名称->骨骼的索引
 	CGRSMapString2UINT	m_mapAnimName2Index;	//名称->动画的索引
 
-	UINT				m_nCurrentAnimIndex;	// 当前播放的动画序列索引（当前动作）
+	UINT				m_nCurrentAnimIndex;	// 当前播放的动画序列索引
 };
 
 __inline const XMMATRIX& MXEqual(XMMATRIX& mxDX, const aiMatrix4x4& mxAI)
@@ -157,5 +172,5 @@ __inline VOID QuaternionSlerp(XMVECTOR& vOut, aiQuaternion& qStart, aiQuaternion
 	vOut = XMQuaternionSlerp(qdxStart, qdxEnd, t);
 }
 
-BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData);
-VOID CalcAnimation(ST_GRS_MESH_DATA& stMeshData, FLOAT fTimeInSeconds, CGRSARMatrix& arTransforms);
+BOOL LoadMesh(LPCSTR pszFileName, ST_GRS_MESH_DATA& stMeshData, UINT nFlags = ASSIMP_LOAD_FLAGS_DEFAULT);
+VOID CalcAnimation(ST_GRS_MESH_DATA& stMeshData, FLOAT fTimeInSeconds, CGRSMatrixArray& arTransforms);
