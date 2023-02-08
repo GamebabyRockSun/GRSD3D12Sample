@@ -1068,6 +1068,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			GRS_SAFE_FREE(pbPicData);
 		}
 
+		{}
 		// 使用DDSLoader辅助函数加载Skybox的纹理
 		{
 			TCHAR pszSkyboxTextureFile[MAX_PATH] = {};
@@ -1223,6 +1224,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
 			pICmdListDirect->ResourceBarrier(1, &stTransResBarrier);
 		}
 
+		{}
 		//向直接命令列表发出从上传堆复制纹理数据到默认堆的命令，执行并同步等待，即完成第二个Copy动作，由GPU上的复制引擎完成
 		//注意此时直接命令列表还没有绑定PSO对象，因此它也是不能执行3D图形命令的，但是可以执行复制命令，因为复制引擎不需要什么
 		//额外的状态设置之类的参数

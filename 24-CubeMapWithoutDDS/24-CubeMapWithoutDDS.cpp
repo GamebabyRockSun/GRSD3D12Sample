@@ -822,7 +822,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
             GRS_THROW_IF_FAILED(g_stD3DDevice.m_pID3D12Device4->CreateCommittedResource(
                 &g_stDefaultHeapProps
                 , D3D12_HEAP_FLAG_NONE
-                , &stResourceDesc				//可以使用CD3DX12_RESOURCE_DESC::Tex2D来简化结构体的初始化
+                , &stResourceDesc			
                 , D3D12_RESOURCE_STATE_COPY_DEST
                 , nullptr
                 , IID_PPV_ARGS(&g_stSkyBoxData.m_pITexture)));

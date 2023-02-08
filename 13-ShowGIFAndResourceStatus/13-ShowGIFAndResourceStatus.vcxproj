@@ -23,7 +23,7 @@
     <ProjectGuid>{B3D520CA-D4E5-4513-8664-4EAC26C10650}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>My13ShowGIFAndResourceStatus</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.20348.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

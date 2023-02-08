@@ -844,6 +844,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR    l
             stVBV[1].SizeInBytes = iRowCnts * iColCnts * sizeof(ST_GRS_PER_INSTANCE);
         }
 
+        {}
         // 10、填充资源屏障结构
         {
             stBeginResBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;

@@ -191,7 +191,7 @@ ST_GRS_SCENE_CONST_DATA                     g_stCBData = {};
 ST_GRS_CONST_BUFFER                         g_stConstBuffer = {};
 
 ST_GRS_PSO                                  g_stModelPSO = {};
-ST_GRS_DESCRIPTOR_HEAP                             g_stModelHeap = {};
+ST_GRS_DESCRIPTOR_HEAP                      g_stModelHeap = {};
 ST_GRS_MESH_DATA_MULTI_SLOT                 g_stMeshData = {};
 
 void OnSize(UINT width, UINT height, bool minimized);

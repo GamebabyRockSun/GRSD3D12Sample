@@ -40,7 +40,6 @@ void GSMain(triangle ST_GRS_HLSL_GS_IN stGSInput[3], inout TriangleStream<ST_GRS
 
         for (int v = 0; v < 3; v++)
         {
-            stGSOutput.RTIndex = f;
             // 下面的乘积是可以优化的，可以提前在 CPP 中 将6个View矩阵分别先与Projection矩阵相乘，再传入Shader
             // 当然因为这里是固定的Cube
             stGSOutput.m_v4WPos = stGSInput[v].m_v4WPos;
