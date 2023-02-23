@@ -122,3 +122,11 @@ D3D12 ERROR: ID3D12CommandQueue::Present: Resource state (0x800: D3D12_RESOURCE_
 2021-12-27
 
 1、在修改14号示例阴影部分时，需要加载DDS纹理，包括颜色纹理和法线纹理的DDS，在另一个例子中使用了更方便的WIC方式来加载DDS，结果发现Cube的DDS和Plane的DDS都无法加载，最后直接用VS2019打开后发现，这两个DDS使用的编码格式是BGRA格式，这样就需要把它们转存为BC3编码格式，目前WIC已经可以支持到最高BC3压缩方式的DDS纹理，这样就比较方便统一纹理的加载方式。所以最终将Cube和Plane的DDS纹理都转码为BC3方式存储。同时BC3编码格式的DDS纹理体积也变小了，另外在Windows资源管理器中也可以预览了，因为Windows资源管理器使用的解码器与WIC使用的解码器是一致的。
+
+2023-02-20
+
+1、修复了 25-IBL-MultiInstance-Sphere 示例中 GRS_PBR_Function.hlsli 文件中 DistributionGGX 函数中的错误，其中正确表达式是 “denom = PI * denom * denom;” ，原来误写作 “denom = PI * denom / denom;” ,等于让粗糙度参数失去了效果，导致材质球阵列中显示的效果是不正确的。
+
+2023-02-22
+
+1、修正了25-IBL-MultiInstance-Sphere 示例中 GRS_PBR_IBL_PS_Without_Texture.hlsl 中84行，最终IBL 光照合成时应为 “ float3 specular = prefilteredColor * (F0 * brdf.x + brdf.y); ” ，按照推导应该使用 F0，而不是 F。原来误为 “ float3 specular = prefilteredColor * (F * brdf.x + brdf.y);” 等于是菲涅尔项被乘了两次，是不对的，learn OpenGL 示例中 shader 代码也用错了。

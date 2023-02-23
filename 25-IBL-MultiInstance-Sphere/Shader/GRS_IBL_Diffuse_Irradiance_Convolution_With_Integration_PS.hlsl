@@ -38,6 +38,7 @@ float4 PSMain(ST_GRS_HLSL_PS_INPUT pin):SV_Target
 
 			// 切空间转换到世界坐标空间
 			float3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
+
 			//float3 sampleVec = right;
 			irradiance += (g_texHDREnvCubemap.Sample(g_sapLinear, sampleVec).xyz * cos(theta) * sin(theta));
 

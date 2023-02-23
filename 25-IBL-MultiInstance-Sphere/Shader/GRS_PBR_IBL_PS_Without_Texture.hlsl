@@ -81,7 +81,7 @@ float4 PSMain(ST_GRS_HLSL_PBR_PS_INPUT stPSInput): SV_TARGET
     const float MAX_REFLECTION_LOD = 4.0;
     float3 prefilteredColor = g_texSpecularCubemap.SampleLevel(g_sapLinear, R, stPSInput.m_fRoughness * MAX_REFLECTION_LOD).rgb;
     float2 brdf = g_texLut.Sample(g_sapLinear, float2(max(dot(N, V), 0.0), stPSInput.m_fRoughness)).rg;
-    float3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+    float3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);
 
     // IBL π‚’’∫œ≥…
     float3 ambient = (kD * diffuse + specular) * stPSInput.m_fAO;

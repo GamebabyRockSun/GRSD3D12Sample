@@ -61,7 +61,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 
 	float nom = a2;
 	float denom = (NdotH2 * (a2 - 1.0f) + 1.0f);
-	denom = PI * denom / denom;
+	denom = PI * denom * denom;
 
 	return nom / denom;
 }

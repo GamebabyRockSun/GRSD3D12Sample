@@ -314,7 +314,7 @@ XMVECTOR g_v4LookAt = XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f);	//眼睛所盯的位置
 XMVECTOR g_v4UpDir = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);   //头部正上方位置
 
 float    g_fNear = 0.1f;
-float    g_fFar = 1000.0f;
+float    g_fFar = 200000.0f;    // for Skybox set so far
 
 BOOL     g_bWorldRotate = TRUE;
 

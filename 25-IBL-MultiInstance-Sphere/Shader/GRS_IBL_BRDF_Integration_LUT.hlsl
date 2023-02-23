@@ -44,8 +44,8 @@ float2 IntegrateBRDF(float NdotV, float roughness)
 		float3 H = ImportanceSampleGGX(Xi, N, roughness);
 		float3 L = normalize(2.0 * dot(V, H) * H - V);
 
-		float NdotL = max(L.z, 0.0);
-		float NdotH = max(H.z, 0.0);
+		float NdotL = max(L.z, 0.0); // N = (0.0f, 0.0f, 1.0f);
+		float NdotH = max(H.z, 0.0); // N = (0.0f, 0.0f, 1.0f);
 		float VdotH = max(dot(V, H), 0.0);
 
 		if (NdotL > 0.0)
