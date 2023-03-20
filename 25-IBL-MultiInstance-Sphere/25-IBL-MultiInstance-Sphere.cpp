@@ -4386,9 +4386,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCm
 
             float fOffsetX = 2.0f;
             float fOffsetY = fOffsetX;
-            float fWidth = 240.f;
+            float fWidth = 180.f;
             float fHeight = fWidth;
-            size_t szCol = 8;
+            size_t szCol = 10;
 
             for (size_t i = 0; i < g_stQuadData.m_nInstanceCount; i++)
             {

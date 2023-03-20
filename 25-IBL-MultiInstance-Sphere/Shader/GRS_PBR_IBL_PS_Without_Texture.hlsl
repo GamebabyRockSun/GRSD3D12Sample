@@ -73,18 +73,27 @@ float4 PSMain(ST_GRS_HLSL_PBR_PS_INPUT stPSInput): SV_TARGET
     float3 kS = F;
     float3 kD = 1.0 - kS;
     kD *= 1.0 - stPSInput.m_fMetallic;
-
+    // 采样漫反射辐照度贴图
     float3 irradiance = g_texDiffuseCubemap.Sample(g_sapLinear, N).rgb;
+    
+    // 与物体表面点P的颜色值相乘
     float3 diffuse = irradiance * stPSInput.m_v3Albedo;
 
     // IBL镜面反射环境光部分
-    const float MAX_REFLECTION_LOD = 4.0;
+    const float MAX_REFLECTION_LOD = 5.0; // 与镜面反射预积分贴图的 Max Map Level 保持一致
+    // 采样镜面反射预积分辐照度贴图
     float3 prefilteredColor = g_texSpecularCubemap.SampleLevel(g_sapLinear, R, stPSInput.m_fRoughness * MAX_REFLECTION_LOD).rgb;
+    
+    // 采样 BRDF 预积分贴图
     float2 brdf = g_texLut.Sample(g_sapLinear, float2(max(dot(N, V), 0.0), stPSInput.m_fRoughness)).rg;
+    
+    // 合成计算镜面反射光辐射度，注意使用的是 F0 参数，与公式保持一致
     float3 specular = prefilteredColor * (F0 * brdf.x + brdf.y);
 
-    // IBL 光照合成
+    // IBL 光照合成，注意用 kD 参数再衰减下漫反射成分，与最开初的渲染方程中保持一致
+    // m_fA0 是环境遮挡因子，目前总是设置其为 1
     float3 ambient = (kD * diffuse + specular) * stPSInput.m_fAO;
+
     // 直接光照 + IBL光照
     float3 color = ambient + Lo;
 
