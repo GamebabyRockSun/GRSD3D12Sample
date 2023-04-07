@@ -5,9 +5,12 @@
 #include <wincodec.h> //for WIC
 #include <d3d12.h> //for d3d12
 #include <wrl.h> //添加WTL支持 方便使用COM
+#include <atlexcept.h>
+
 #include "GRS_Def.h"
 #include "GRS_Mem.h"
 
+using namespace ATL;
 using namespace Microsoft;
 using namespace Microsoft::WRL;
 
@@ -61,6 +64,8 @@ static WICConvert g_WICConvert[] =
 
 	{ GUID_WICPixelFormat2bppGray,              GUID_WICPixelFormat8bppGray }, // DXGI_FORMAT_R8_UNORM
 	{ GUID_WICPixelFormat4bppGray,              GUID_WICPixelFormat8bppGray }, // DXGI_FORMAT_R8_UNORM
+	//// 2021-06-12
+	//{ GUID_WICPixelFormat8bppGray,				GUID_WICPixelFormat8bppGray }, // DXGI_FORMAT_R8_UNORM
 
 	{ GUID_WICPixelFormat16bppGrayFixedPoint,   GUID_WICPixelFormat16bppGrayHalf }, // DXGI_FORMAT_R16_FLOAT
 	{ GUID_WICPixelFormat32bppGrayFixedPoint,   GUID_WICPixelFormat32bppGrayFloat }, // DXGI_FORMAT_R32_FLOAT
@@ -137,7 +142,7 @@ __inline BOOL WICLoadImageFromFile(LPCWSTR pszTextureFile
 	, UINT& nTextureH
 	, UINT& nPicRowPitch
 	, BYTE*& pbImageData
-	, size_t& szBufferSize )
+	, size_t& szBufferSize)
 {
 	BOOL bRet = TRUE;
 	try
@@ -174,43 +179,36 @@ __inline BOOL WICLoadImageFromFile(LPCWSTR pszTextureFile
 		WICPixelFormatGUID wpf = {};
 		//获取WIC图片格式
 		GRS_THROW_IF_FAILED(pIWICFrame->GetPixelFormat(&wpf));
-		GUID tgFormat = {};
-
-		//通过第一道转换之后获取DXGI的等价格式
-		if (GetTargetPixelFormat(&wpf, &tgFormat))
-		{
-			emTextureFormat = GetDXGIFormatFromPixelFormat(&tgFormat);
-		}
-
+		// 尝试是否可以直接使用
+		emTextureFormat = GetDXGIFormatFromPixelFormat(&wpf);
+		GUID tgFormat = { wpf };
 		if (DXGI_FORMAT_UNKNOWN == emTextureFormat)
-		{// 不支持的图片格式 目前退出了事 
-		 // 一般 在实际的引擎当中都会提供纹理格式转换工具，
+		{// 直接不支持的图片格式 尝试一下兼容性转换
+		 // 一般在实际的引擎当中都会提供纹理格式转换工具，
 		 // 图片都需要提前转换好，所以不会出现不支持的现象
-			AtlThrow(S_FALSE);
-		}
+			//通过第一道转换之后获取DXGI的等价格式
+			if (GetTargetPixelFormat(&wpf, &tgFormat))
+			{
+				emTextureFormat = GetDXGIFormatFromPixelFormat(&tgFormat);
+				ComPtr<IWICFormatConverter> pIConverter;
+				GRS_THROW_IF_FAILED(pIWICFactory->CreateFormatConverter(&pIConverter));
 
-		if (!InlineIsEqualGUID(wpf, tgFormat))
-		{// 这个判断很重要，如果原WIC格式不是直接能转换为DXGI格式的图片时
-		 // 我们需要做的就是转换图片格式为能够直接对应DXGI格式的形式
-			//创建图片格式转换器
-			ComPtr<IWICFormatConverter> pIConverter;
-			GRS_THROW_IF_FAILED(pIWICFactory->CreateFormatConverter(&pIConverter));
-
-			//初始化一个图片转换器，实际也就是将图片数据进行了格式转换
-			GRS_THROW_IF_FAILED(pIConverter->Initialize(
-				pIWICFrame.Get(),                // 输入原图片数据
-				tgFormat,						 // 指定待转换的目标格式
-				WICBitmapDitherTypeNone,         // 指定位图是否有调色板，现代都是真彩位图，不用调色板，所以为None
-				NULL,                            // 指定调色板指针
-				0.f,                             // 指定Alpha阀值
-				WICBitmapPaletteTypeCustom       // 调色板类型，实际没有使用，所以指定为Custom
-			));
-			// 调用QueryInterface方法获得对象的位图数据源接口
-			GRS_THROW_IF_FAILED(pIConverter.As(&pIBMP));
+				//初始化一个图片转换器，实际也就是将图片数据进行了格式转换
+				GRS_THROW_IF_FAILED(pIConverter->Initialize(
+					pIWICFrame.Get(),                // 输入原图片数据
+					tgFormat,						 // 指定待转换的目标格式
+					WICBitmapDitherTypeNone,         // 指定位图是否有调色板，现代都是真彩位图，不用调色板，所以为None
+					NULL,                            // 指定调色板指针
+					0.f,                             // 指定Alpha阀值
+					WICBitmapPaletteTypeCustom       // 调色板类型，实际没有使用，所以指定为Custom
+				));
+				// 调用QueryInterface方法获得对象的位图数据源接口
+				GRS_THROW_IF_FAILED(pIConverter.As(&pIBMP));
+			}
 		}
 		else
 		{
-			//图片数据格式不需要转换，直接获取其位图数据源接口
+			//获取位图数据源接口
 			GRS_THROW_IF_FAILED(pIWICFrame.As(&pIBMP));
 		}
 		//获得图片大小（单位：像素）
@@ -251,7 +249,7 @@ __inline BOOL WICLoadImageFromFile(LPCWSTR pszTextureFile
 		GRS_THROW_IF_FAILED(pIBMP->CopyPixels(nullptr
 			, nPicRowPitch
 			, static_cast<UINT>(szImageBuffer)
-			, pbPicData) );
+			, pbPicData));
 
 		pbImageData = pbPicData;
 		szBufferSize = szImageBuffer;

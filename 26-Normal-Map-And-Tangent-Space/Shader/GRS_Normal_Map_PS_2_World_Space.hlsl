@@ -21,7 +21,6 @@ float4 PSMain(ST_GRS_HLSL_PS_INPUT stPSInput) : SV_TARGET
     // ÖðÏñËØ·¨Ïß
     float3 N = g_texNormal.Sample(g_sapLinear, stPSInput.m_v2UV).xyz;
     N = 2.0f * N - 1.0f;
-    //N.y = -N.y;   // for Opengl Normal Map Texture 
     N = normalize(N);
     
     float3x3 mxTBN= { stPSInput.m_v3WTangent , stPSInput.m_v3WBitangent, stPSInput.m_v3WNormal };

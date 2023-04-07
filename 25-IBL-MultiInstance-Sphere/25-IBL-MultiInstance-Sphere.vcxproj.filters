@@ -64,7 +64,7 @@
     <None Include="Shader\GRS_Scene_CB_Def.hlsli">
       <Filter>Shader</Filter>
     </None>
-    <None Include="..\Shader\HDR_COLOR_CONV.hlsli">
+    <None Include="..\Shader\0-1 HDR_COLOR_CONV.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>

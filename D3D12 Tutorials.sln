@@ -55,6 +55,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "25-IBL-MultiInstance-Sphere
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "26-Normal-Map-And-Tangent-Space", "26-Normal-Map-And-Tangent-Space\26-Normal-Map-And-Tangent-Space.vcxproj", "{469021D1-DAEC-4EFB-8A1E-A148A1E4EF20}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "27-IBL-With-Material-Texture", "27-IBL-With-Material-Texture\27-IBL-With-Material-Texture.vcxproj", "{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -377,6 +379,18 @@ Global
 		{469021D1-DAEC-4EFB-8A1E-A148A1E4EF20}.Release|x64.Build.0 = Release|x64
 		{469021D1-DAEC-4EFB-8A1E-A148A1E4EF20}.Release|x86.ActiveCfg = Release|Win32
 		{469021D1-DAEC-4EFB-8A1E-A148A1E4EF20}.Release|x86.Build.0 = Release|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Debug|x64.ActiveCfg = Debug|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Debug|x64.Build.0 = Debug|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Debug|x86.ActiveCfg = Debug|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Debug|x86.Build.0 = Debug|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Profile|x64.ActiveCfg = Debug|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Profile|x64.Build.0 = Debug|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Profile|x86.ActiveCfg = Debug|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Profile|x86.Build.0 = Debug|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Release|x64.ActiveCfg = Release|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Release|x64.Build.0 = Release|x64
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Release|x86.ActiveCfg = Release|Win32
+		{5CB8B4F5-1BF1-475D-B0A0-83BE20E30061}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
