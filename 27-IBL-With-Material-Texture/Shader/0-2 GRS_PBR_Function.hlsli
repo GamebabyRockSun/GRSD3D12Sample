@@ -43,9 +43,9 @@ float2 SampleSphericalMap(float3 coord)
 	float theta = acos(coord.y);
 	float phi = atan2(coord.x, coord.z);
 	phi += (phi < 0) ? 2 * PI : 0;
-
-	float u = phi * 0.1591f;
-	float v = theta * 0.3183f;
+	// to [0,1]
+	float u = phi	* INV_TWO_PI;
+	float v = theta * INV_PI;
 	return float2(u, v);
 }
 
